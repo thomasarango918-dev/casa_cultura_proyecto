@@ -1,0 +1,37 @@
+# Base de datos PostgreSQL para desarrollo local.
+#
+#   Iniciar:            docker compose up -d
+#   Ver estado:         docker compose ps
+#   Reiniciar de cero:  docker compose down -v && docker compose up -d
+#
+# Las credenciales coinciden con DATABASE_URL en backend/.env.example.
+# Son solo para desarrollo: no las use en un servidor real.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: casacultura-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: casacultura
+      POSTGRES_USER: casacultura
+      POSTGRES_PASSWORD: casacultura_dev
+      # Zona horaria de Colombia para las fechas por defecto (LOCALTIMESTAMP).
+      TZ: America/Bogota
+      PGTZ: America/Bogota
+    ports:
+      - "5432:5432"
+    volumes:
+      # El script se ejecuta automáticamente solo la primera vez (volumen vacío).
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      # Volumen persistente: los datos sobreviven a reinicios del contenedor.
+      - casacultura_pgdata:/var/lib/postgresql/data
+    # Permite saber cuándo PostgreSQL ya acepta conexiones (estado "healthy").
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U casacultura -d casacultura"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  casacultura_pgdata:

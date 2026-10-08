@@ -1,0 +1,19 @@
+# Dependencias del backend. Instalar con:  pip install -r requirements.txt
+
+# Framework web y servidor ASGI que ejecuta la API.
+fastapi>=0.115.0,<1.0
+uvicorn[standard]>=0.30.0
+
+# ORM y controlador de PostgreSQL.
+SQLAlchemy>=2.0.36,<2.1
+psycopg2-binary>=2.9.10
+
+# Validación de datos y lectura de la configuración desde el archivo .env.
+pydantic>=2.7.0,<3.0
+pydantic-settings>=2.3.0
+
+# Seguridad: tokens JWT y hash de contraseñas.
+PyJWT>=2.9.0
+passlib[bcrypt]==1.7.4
+# passlib 1.7.4 no es compatible con bcrypt 4.1+ (y falla con bcrypt 5.x); se fija la versión.
+bcrypt==4.0.1

@@ -1,0 +1,169 @@
+/*
+ * Estilos globales del frontend (Tailwind CSS v4).
+ *
+ * Contenido:
+ *   1. Importación de Tailwind.
+ *   2. Tokens de diseño (@theme): tipografía, paleta institucional, sombras y animaciones.
+ *      Cada color definido aquí genera sus clases automáticamente, por ejemplo
+ *      --color-pizarra-900 habilita bg-pizarra-900, text-pizarra-900, border-pizarra-900...
+ *   3. Animaciones (@keyframes).
+ *   4. Estilos base de los elementos HTML.
+ *   5. Utilidades propias y ajustes de accesibilidad.
+ */
+@import "tailwindcss";
+
+/* -------------------------------------------------------------------------- */
+/*  2. Tokens de diseño                                                       */
+/*  pizarra: azul oscuro institucional   pradera: acento verde del altiplano   */
+/* -------------------------------------------------------------------------- */
+@theme {
+  /* Tipografía: Inter (cargada en main.jsx) con fuentes del sistema como respaldo. */
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+
+  /* Escala pizarra: fondos oscuros, textos principales y botones. */
+  --color-pizarra-50: #f4f6fa;
+  --color-pizarra-100: #e8ecf3;
+  --color-pizarra-200: #d0d8e5;
+  --color-pizarra-300: #aab7cc;
+  --color-pizarra-400: #7d8eab;
+  --color-pizarra-500: #5a6c8c;
+  --color-pizarra-600: #435473;
+  --color-pizarra-700: #33415d;
+  --color-pizarra-800: #222e47;
+  --color-pizarra-900: #152038;
+  --color-pizarra-950: #0c1528;
+
+  /* Escala pradera: acentos (opción activa del menú, estados "disponible", avisos de éxito). */
+  --color-pradera-50: #f0f7f3;
+  --color-pradera-100: #dcede3;
+  --color-pradera-200: #bad9c7;
+  --color-pradera-300: #8fbea3;
+  --color-pradera-400: #64a07f;
+  --color-pradera-500: #478466;
+  --color-pradera-600: #376a52;
+  --color-pradera-700: #2d5543;
+
+  /* Sombras: "panel" para tarjetas sobre la página; "float" para menús y avisos flotantes. */
+  --shadow-panel: 0 1px 2px rgb(12 21 40 / 0.04), 0 1px 3px rgb(12 21 40 / 0.05);
+  --shadow-float: 0 16px 36px -10px rgb(12 21 40 / 0.22), 0 4px 10px -4px rgb(12 21 40 / 0.08);
+
+  /* Animaciones disponibles como clases: animate-toast-in, animate-fade-in, animate-drawer-in. */
+  --animate-toast-in: toast-in 260ms cubic-bezier(0.21, 1.02, 0.73, 1) both;
+  --animate-fade-in: fade-in 160ms ease-out both;
+  --animate-drawer-in: drawer-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  3. Animaciones                                                            */
+/* -------------------------------------------------------------------------- */
+
+/* Entrada de un aviso flotante: aparece y baja levemente. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Entrada de menús desplegables y del fondo del menú móvil. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Entrada del menú lateral en móvil: se desliza desde la izquierda. */
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Barra de tiempo restante de los avisos (la duración se asigna en ToastContext.jsx). */
+@keyframes toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  4. Base                                                                   */
+/* -------------------------------------------------------------------------- */
+@layer base {
+  /* Suavizado de fuentes y eliminación del resaltado azul al tocar en móviles. */
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 100dvh se ajusta a la altura visible real en móviles (descuenta las barras del navegador). */
+  body {
+    min-height: 100dvh;
+    background-color: var(--color-slate-50);
+    color: var(--color-slate-800);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss03";
+  }
+
+  /* Color del texto seleccionado. */
+  ::selection {
+    background-color: var(--color-pradera-200);
+    color: var(--color-pizarra-950);
+  }
+
+  /* Contorno de foco visible al navegar con teclado (accesibilidad). */
+  :focus-visible {
+    outline: 2px solid var(--color-pradera-500);
+    outline-offset: 2px;
+  }
+
+  /* Tailwind v4 deja los botones con cursor por defecto; se restaura el puntero. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  5. Utilidades propias                                                     */
+/* -------------------------------------------------------------------------- */
+
+/* Barra de desplazamiento delgada y discreta (menú lateral sobre fondo oscuro). */
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.14) transparent;
+}
+
+/* Respeta la preferencia del sistema operativo de reducir animaciones. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
