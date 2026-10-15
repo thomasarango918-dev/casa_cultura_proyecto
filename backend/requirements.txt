@@ -17,3 +17,6 @@ PyJWT>=2.9.0
 passlib[bcrypt]==1.7.4
 # passlib 1.7.4 no es compatible con bcrypt 4.1+ (y falla con bcrypt 5.x); se fija la versión.
 bcrypt==4.0.1
+
+# Lectura de formularios multipart/form-data (carga de documentos en la radicación pública).
+python-multipart>=0.0.18

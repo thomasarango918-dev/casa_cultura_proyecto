@@ -8,10 +8,13 @@
  *                     muestra avisos (por ejemplo, "Su sesión expiró").
  *
  * Rutas:
- *   /login      Pública. Si ya hay sesión, redirige al panel.
- *   /dashboard  Protegida. Requiere sesión y se muestra dentro de MainLayout.
- *   /           Redirige a /dashboard.
- *   *           Cualquier otra URL redirige al inicio.
+ *   /login                  Pública. Si ya hay sesión, redirige al panel.
+ *   /inscripcion            Pública y aislada: formulario de inscripción sin sesión ni MainLayout.
+ *   /dashboard              Protegida. Requiere sesión y se muestra dentro de MainLayout.
+ *   /dashboard/solicitudes  Protegida. Gestión de solicitudes radicadas.
+ *   /dashboard/documentos   Protegida. Inventario de documentos (búsqueda por documento o radicado).
+ *   /                       Redirige a /dashboard.
+ *   *                       Cualquier otra URL redirige al inicio.
  */
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import MainLayout from './components/layout/MainLayout'
@@ -20,7 +23,10 @@ import PublicOnlyRoute from './components/routing/PublicOnlyRoute'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
 import DashboardBasePage from './pages/DashboardBasePage'
+import DocumentosPage from './pages/DocumentosPage'
+import InscripcionPage from './pages/InscripcionPage'
 import LoginPage from './pages/LoginPage'
+import SolicitudesPage from './pages/SolicitudesPage'
 
 export default function App() {
   return (
@@ -33,10 +39,15 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
             </Route>
 
+            {/* Formulario público: accesible con o sin sesión, fuera del marco del BackOffice. */}
+            <Route path="/inscripcion" element={<InscripcionPage />} />
+
             {/* Rutas protegidas dentro del marco principal. Las páginas nuevas se agregan aquí. */}
             <Route element={<ProtectedRoute />}>
               <Route element={<MainLayout />}>
                 <Route path="/dashboard" element={<DashboardBasePage />} />
+                <Route path="/dashboard/solicitudes" element={<SolicitudesPage />} />
+                <Route path="/dashboard/documentos" element={<DocumentosPage />} />
               </Route>
             </Route>
 

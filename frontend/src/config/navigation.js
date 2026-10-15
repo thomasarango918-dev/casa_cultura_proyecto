@@ -18,6 +18,12 @@ import {
 } from 'lucide-react'
 
 /**
+ * Roles que gestionan solicitudes de inscripción. Debe coincidir con
+ * ROLES_BACKOFFICE en backend/app/dependencies/solicitud_dependencies.py.
+ */
+export const BACKOFFICE_ROLES = ['Administrador', 'Coordinador']
+
+/**
  * Estructura del menú lateral. Los elementos con `disabled: true` corresponden a
  * módulos de fases posteriores: se muestran atenuados y aún no navegan.
  * `roles` limita un grupo a ciertos roles (nombre tal como está en TBL_Roles).
@@ -31,9 +37,10 @@ export const NAVIGATION = [
   {
     id: 'radicacion',
     label: 'Radicación',
+    roles: BACKOFFICE_ROLES,
     items: [
-      { label: 'Solicitudes', icon: Stamp, disabled: true },
-      { label: 'Documentos', icon: ClipboardCheck, disabled: true },
+      { label: 'Solicitudes', to: '/dashboard/solicitudes', icon: Stamp },
+      { label: 'Documentos', to: '/dashboard/documentos', icon: ClipboardCheck },
     ],
   },
   {
@@ -61,6 +68,14 @@ const ROUTE_META = {
   '/dashboard': {
     title: 'Panel general',
     breadcrumbs: [{ label: 'Inicio', to: '/dashboard' }, { label: 'Panel general' }],
+  },
+  '/dashboard/solicitudes': {
+    title: 'Solicitudes',
+    breadcrumbs: [{ label: 'Inicio', to: '/dashboard' }, { label: 'Radicación' }, { label: 'Solicitudes' }],
+  },
+  '/dashboard/documentos': {
+    title: 'Documentos',
+    breadcrumbs: [{ label: 'Inicio', to: '/dashboard' }, { label: 'Radicación' }, { label: 'Documentos' }],
   },
 }
 

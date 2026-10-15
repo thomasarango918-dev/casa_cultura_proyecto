@@ -47,3 +47,30 @@ class PermisoDenegadoError(DomainError):
     """El usuario está autenticado pero su rol no permite la acción. Se responde 403."""
 
     default_message = "No tiene permisos para realizar esta acción."
+
+
+# --------------------------------------------------------------------------- #
+# Fase 2: radicación de solicitudes
+# --------------------------------------------------------------------------- #
+class RecursoNoEncontradoError(DomainError):
+    """La solicitud, el documento o el archivo pedido no existe. El controlador responde 404."""
+
+    default_message = "El recurso solicitado no existe."
+
+
+class DatosInvalidosError(DomainError):
+    """Los datos son correctos en forma pero no en contenido (programa inexistente...). Se responde 400."""
+
+    default_message = "Los datos enviados no son válidos."
+
+
+class ArchivoInvalidoError(DatosInvalidosError):
+    """Un archivo adjunto no cumple el formato, el tamaño o la cantidad permitidos. Se responde 400."""
+
+    default_message = "Uno de los archivos adjuntos no es válido."
+
+
+class EstadoSolicitudError(DomainError):
+    """La solicitud ya fue evaluada y no admite otra decisión. El controlador responde 409."""
+
+    default_message = "La solicitud ya fue evaluada y no admite cambios."

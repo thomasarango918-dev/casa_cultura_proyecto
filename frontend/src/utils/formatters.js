@@ -41,3 +41,47 @@ export function formatLongDate(date = new Date()) {
   }).format(date)
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
+
+/**
+ * Fecha y hora corta en español de Colombia. Ejemplo: "14 oct 2026, 8:15 p. m.".
+ * Acepta un Date o el texto ISO que devuelve la API.
+ */
+export function formatDateTime(value) {
+  if (!value) return ''
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+}
+
+/** Fecha corta sin hora. Ejemplo: "14 oct 2026". */
+export function formatShortDate(value) {
+  if (!value) return ''
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(date)
+}
+
+/**
+ * Fecha de calendario sin hora (por ejemplo, la fecha de nacimiento "2012-03-01").
+ * Se arma con año, mes y día locales: new Date("2012-03-01") se interpreta en UTC
+ * y en Colombia mostraría el día anterior. Ejemplo: "1 mar 2012".
+ */
+export function formatBirthDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? '')
+  if (!match) return ''
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(date)
+}
+
+/** Tamaño de archivo legible. Ejemplo: 1536000 -> "1,5 MB". */
+export function formatFileSize(bytes = 0) {
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KB', 'MB', 'GB']
+  let size = bytes / 1024
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit += 1
+  }
+  return `${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 }).format(size)} ${units[unit]}`
+}

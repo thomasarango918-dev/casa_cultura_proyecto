@@ -4,3 +4,5 @@ __pycache__/
 *.py[cod]
 .env
 .pytest_cache/
+# Documentos subidos por los aspirantes (datos personales: nunca se versionan).
+uploads/

@@ -21,7 +21,13 @@ from fastapi.responses import JSONResponse
 
 from app.config.database import check_database_connection, engine
 from app.config.settings import settings
-from app.controllers import auth_controller
+from app.controllers import (
+    auth_controller,
+    dashboard_controller,
+    documento_controller,
+    public_controller,
+    solicitud_controller,
+)
 from app.utils.error_handlers import register_exception_handlers
 
 # --------------------------------------------------------------------------- #
@@ -91,6 +97,10 @@ register_exception_handlers(app)
 # (por ejemplo, solicitudes) basta con incluir aquí su router.
 api_v1 = APIRouter(prefix=settings.API_V1_PREFIX)
 api_v1.include_router(auth_controller.router)
+api_v1.include_router(public_controller.router)  # Fase 2: sin token.
+api_v1.include_router(solicitud_controller.router)  # Fase 2: BackOffice con token.
+api_v1.include_router(dashboard_controller.router)
+api_v1.include_router(documento_controller.router)  # Inventario de documentos.
 app.include_router(api_v1)
 
 
