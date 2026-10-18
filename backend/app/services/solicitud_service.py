@@ -2,11 +2,14 @@
 Servicio de solicitudes: reglas de negocio de la radicación y de la evaluación.
 
 Radicación (público):
+    0. Verificar que las inscripciones estén abiertas (TBL_Configuracion_Sistema);
+       si están cerradas no se procesa nada (InscripcionesCerradasError -> 403).
     1. Validar los documentos (uno por cada requisito de TBL_RequisitoDocumento),
        el programa, el tipo de documento y, si el aspirante es menor de edad,
        el parentesco del acudiente.
     2. Reservar el número RAD-AAAA-XXXX dentro de la transacción.
     3. Guardar la solicitud, escribir los archivos en disco y registrar los documentos.
+       La solicitud guarda el periodo académico vigente en la columna Periodo.
     4. Confirmar todo junto. Si algo falla, se revierte la base y se borran los archivos.
 
 Evaluación (BackOffice):
@@ -49,10 +52,12 @@ from app.schemas.solicitud_schema import (
     TipoDocumentoOut,
 )
 from app.services.auth_service import normalizar_documento
+from app.services.configuracion_sistema_service import ConfiguracionSistemaService
 from app.utils.exceptions import (
     ArchivoInvalidoError,
     DatosInvalidosError,
     EstadoSolicitudError,
+    InscripcionesCerradasError,
     RecursoNoEncontradoError,
 )
 from app.utils.file_storage import ArchivoAdjunto, delete_files, resolve_stored, save_document
@@ -138,8 +143,9 @@ def to_detalle(solicitud: SolicitudInscripcion) -> SolicitudDetalle:
 class SolicitudService:
     """Casos de uso del módulo de radicación."""
 
-    def __init__(self, repository: SolicitudRepository) -> None:
+    def __init__(self, repository: SolicitudRepository, configuracion: ConfiguracionSistemaService) -> None:
         self._repository = repository
+        self._configuracion = configuracion
 
     # ---- Catálogos públicos --------------------------------------------------
     def list_programas(self) -> list[ProgramaOut]:
@@ -155,6 +161,15 @@ class SolicitudService:
         return [RequisitoOut.model_validate(requisito) for requisito in self._repository.list_requisitos()]
 
     # ---- Radicación ----------------------------------------------------------
+    def verificar_inscripciones_abiertas(self) -> None:
+        """Rechaza de entrada una radicación si las inscripciones están cerradas.
+
+        Raises:
+            InscripcionesCerradasError: Las inscripciones están cerradas (403).
+        """
+        if not self._configuracion.estado_publico().inscripciones_abiertas:
+            raise InscripcionesCerradasError()
+
     def _validar_documentos(self, documentos: list[DocumentoRecibido]) -> list[DocumentoRecibido]:
         """Comprueba que haya exactamente un archivo por requisito y ninguno faltante.
 
@@ -197,9 +212,11 @@ class SolicitudService:
             documentos: Pares (código del requisito, archivo).
 
         Raises:
+            InscripcionesCerradasError: Las inscripciones están cerradas.
             ArchivoInvalidoError: Faltan documentos o alguno no corresponde a un requisito.
             DatosInvalidosError: El programa, el tipo de documento o el parentesco no existen.
         """
+        self.verificar_inscripciones_abiertas()
         documentos = self._validar_documentos(documentos)
 
         programa = self._repository.get_programa(data.programa_id)
@@ -215,6 +232,9 @@ class SolicitudService:
 
         written: list[Path] = []
         try:
+            # Se vuelve a leer con bloqueo compartido, dentro de la transacción: si el
+            # Administrador cierra las inscripciones en este instante, espera a que termine.
+            periodo = self._configuracion.periodo_para_radicar()
             numero_radicado = self._repository.next_numero_radicado()
             solicitud = self._repository.add(
                 SolicitudInscripcion(
@@ -233,6 +253,7 @@ class SolicitudService:
                     acudiente_documento=data.acudiente_documento if menor else None,
                     acudiente_telefono=data.acudiente_telefono if menor else None,
                     acudiente_parentesco=data.acudiente_parentesco if menor else None,
+                    periodo=periodo,
                 )
             )
             for codigo, archivo in documentos:

@@ -23,10 +23,13 @@ from app.config.database import check_database_connection, engine
 from app.config.settings import settings
 from app.controllers import (
     auth_controller,
+    configuracion_controller,
+    configuracion_sistema_controller,
     dashboard_controller,
     documento_controller,
     public_controller,
     solicitud_controller,
+    usuario_controller,
 )
 from app.utils.error_handlers import register_exception_handlers
 
@@ -101,6 +104,9 @@ api_v1.include_router(public_controller.router)  # Fase 2: sin token.
 api_v1.include_router(solicitud_controller.router)  # Fase 2: BackOffice con token.
 api_v1.include_router(dashboard_controller.router)
 api_v1.include_router(documento_controller.router)  # Inventario de documentos.
+api_v1.include_router(usuario_controller.router)  # Fase 3: usuarios y roles.
+api_v1.include_router(configuracion_controller.router)  # Fase 3: configuración de la cuenta.
+api_v1.include_router(configuracion_sistema_controller.router)  # Fase 3: inscripciones y periodo.
 app.include_router(api_v1)
 
 

@@ -12,12 +12,18 @@
  *      (GET /public/requisitos): documento de identidad, certificado de EPS y
  *      formato de inscripción firmado.
  * Al radicar se muestra una tarjeta de confirmación con el número RAD-AAAA-XXXX.
+ *
+ * Antes de mostrar los pasos se consulta GET /public/configuracion. Si el Administrador
+ * cerró las inscripciones (Configuración → Sistema), el formulario no se renderiza y
+ * aparece la tarjeta "En este momento no hay convocatorias abiertas". Si se cierran
+ * mientras el aspirante llena el formulario, la API responde 403 y se muestra la misma tarjeta.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
   CalendarDays,
+  CalendarX,
   Check,
   CircleCheck,
   CloudUpload,
@@ -50,6 +56,7 @@ import TextField from '../components/ui/TextField'
 import { useToast } from '../context/ToastContext'
 import { getApiErrorMessage } from '../services/apiClient'
 import {
+  fetchConfiguracionPublica,
   fetchParentescos,
   fetchProgramas,
   fetchRequisitos,
@@ -459,6 +466,29 @@ function Confirmacion({ resultado, onReset }) {
   )
 }
 
+/** Tarjeta que reemplaza al formulario cuando el Administrador cerró las inscripciones. */
+function ConvocatoriaCerrada() {
+  return (
+    <section
+      aria-labelledby="titulo-convocatoria"
+      className="mx-auto max-w-xl overflow-hidden rounded-xl bg-white text-center shadow-panel ring-1 ring-slate-200/80 animate-fade-in"
+    >
+      <div className="px-6 pb-10 pt-12 sm:px-10">
+        <span className="mx-auto grid size-14 place-items-center rounded-full bg-pizarra-50 text-pizarra-600 ring-8 ring-pizarra-50/60">
+          <CalendarX aria-hidden="true" className="size-7" />
+        </span>
+        <h2 id="titulo-convocatoria" className="mt-6 text-xl font-semibold tracking-tight text-pizarra-950 text-balance">
+          En este momento no hay convocatorias abiertas
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-[15px] leading-relaxed text-slate-600">
+          Gracias por su interés en los programas de la Casa de la Cultura. Las inscripciones se habilitarán de nuevo
+          en la próxima convocatoria; vuelva a consultar esta página más adelante.
+        </p>
+      </div>
+    </section>
+  )
+}
+
 export default function InscripcionPage() {
   const toast = useToast()
 
@@ -474,6 +504,8 @@ export default function InscripcionPage() {
     parentescos: [],
     requisitos: [],
   })
+  // Estado de la convocatoria (GET /public/configuracion): el formulario solo se muestra si está abierta.
+  const [convocatoria, setConvocatoria] = useState('loading') // loading | abierta | cerrada | error
   const [submitting, setSubmitting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [resultado, setResultado] = useState(null)
@@ -500,9 +532,20 @@ export default function InscripcionPage() {
     }
   }, [])
 
+  const loadConvocatoria = useCallback(async () => {
+    setConvocatoria('loading')
+    try {
+      const { inscripciones_abiertas: abiertas } = await fetchConfiguracionPublica()
+      setConvocatoria(abiertas ? 'abierta' : 'cerrada')
+    } catch {
+      setConvocatoria('error')
+    }
+  }, [])
+
   useEffect(() => {
+    loadConvocatoria()
     loadCatalogos()
-  }, [loadCatalogos])
+  }, [loadConvocatoria, loadCatalogos])
 
   // Al cambiar de paso el foco va al título, para que el lector de pantalla anuncie el paso nuevo.
   useEffect(() => {
@@ -621,6 +664,12 @@ export default function InscripcionPage() {
       setResultado(data)
       toast.success('Solicitud radicada', `Su número de radicado es ${data.numero_radicado}.`)
     } catch (error) {
+      // 403: el Administrador cerró las inscripciones mientras se llenaba el formulario.
+      if (error.response?.status === 403) {
+        setConvocatoria('cerrada')
+        toast.info('Inscripciones cerradas', getApiErrorMessage(error))
+        return
+      }
       // 422: errores por campo; se vuelve al primer paso que tenga alguno.
       const fieldErrors = {}
       for (const item of error.response?.data?.errores ?? []) {
@@ -667,7 +716,9 @@ export default function InscripcionPage() {
             Solicitud de inscripción {year}
           </h1>
           <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-pizarra-200">
-            Complete los tres pasos y adjunte los documentos solicitados. Al finalizar recibirá un número de radicado.
+            {convocatoria === 'cerrada'
+              ? 'Aquí podrá radicar su solicitud cuando se abra una nueva convocatoria.'
+              : 'Complete los tres pasos y adjunte los documentos solicitados. Al finalizar recibirá un número de radicado.'}
           </p>
         </div>
       </header>
@@ -676,6 +727,26 @@ export default function InscripcionPage() {
         {resultado ? (
           <div ref={headingRef} tabIndex={-1} className="focus:outline-none">
             <Confirmacion resultado={resultado} onReset={handleReset} />
+          </div>
+        ) : convocatoria === 'loading' ? (
+          <div
+            role="status"
+            className="flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-16 text-sm text-slate-500 shadow-panel ring-1 ring-slate-200/80"
+          >
+            <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> Cargando el formulario…
+          </div>
+        ) : convocatoria === 'cerrada' ? (
+          <ConvocatoriaCerrada />
+        ) : convocatoria === 'error' ? (
+          <div className="rounded-xl bg-white px-6 py-14 text-center shadow-panel ring-1 ring-slate-200/80">
+            <span className="mx-auto grid size-12 place-items-center rounded-full bg-rose-50 text-rose-500">
+              <TriangleAlert aria-hidden="true" className="size-6" />
+            </span>
+            <p className="mt-4 text-sm font-semibold text-pizarra-900">No fue posible cargar el formulario</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">Verifique su conexión e intente de nuevo.</p>
+            <Button variant="secondary" icon={RefreshCw} onClick={loadConvocatoria} className="mt-5">
+              Reintentar
+            </Button>
           </div>
         ) : (
           <form

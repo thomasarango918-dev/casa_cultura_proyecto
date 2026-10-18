@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import EstadoBadge from '../components/solicitudes/EstadoBadge'
 import { BACKOFFICE_ROLES } from '../config/navigation'
+import { etiquetaRol } from '../config/roles'
 import { useAuth } from '../context/AuthContext'
 import { getDashboardKpis, listSolicitudes } from '../services/solicitudesService'
 import { formatLongDate, formatShortDate, getFirstName, getGreeting } from '../utils/formatters'
@@ -163,7 +164,7 @@ export default function DashboardBasePage() {
         </div>
         <span className="inline-flex items-center gap-2 self-start rounded-full bg-white px-3 py-1.5 text-sm font-medium text-pizarra-800 ring-1 ring-slate-200 sm:self-auto">
           <ShieldCheck aria-hidden="true" className="size-4 text-pradera-600" />
-          {user?.rol}
+          {etiquetaRol(user?.rol)}
         </span>
       </section>
 

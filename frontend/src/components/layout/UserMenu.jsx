@@ -9,18 +9,22 @@
  * @param {() => void} props.onLogout Acción de cierre de sesión.
  */
 import { useCallback, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ChevronDown, CircleUserRound, LogOut } from 'lucide-react'
 import Avatar from '../ui/Avatar'
+import { etiquetaRol } from '../../config/roles'
 import useDismiss from '../../hooks/useDismiss'
 
 export default function UserMenu({ user, onLogout }) {
   const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
   const containerRef = useRef(null)
   const close = useCallback(() => setOpen(false), [])
   // Cierra el menú al hacer clic fuera o al presionar Escape.
   useDismiss(containerRef, open, close)
 
   const name = user?.nombre_completo ?? 'Usuario'
+  const rol = etiquetaRol(user?.rol)
 
   return (
     <div ref={containerRef} className="relative">
@@ -38,7 +42,7 @@ export default function UserMenu({ user, onLogout }) {
           <span className="block max-w-[12rem] truncate text-sm font-medium leading-tight text-pizarra-900">
             {name}
           </span>
-          <span className="block text-xs text-slate-500">{user?.rol}</span>
+          <span className="block text-xs text-slate-500">{rol}</span>
         </span>
         <ChevronDown
           aria-hidden="true"
@@ -68,7 +72,7 @@ export default function UserMenu({ user, onLogout }) {
           <dl className="mx-1.5 mb-1.5 grid grid-cols-2 gap-3 rounded-lg bg-slate-50 px-3 py-2.5 text-xs">
             <div className="min-w-0">
               <dt className="text-slate-500">Rol</dt>
-              <dd className="mt-0.5 truncate font-medium text-pizarra-900">{user?.rol}</dd>
+              <dd className="mt-0.5 truncate font-medium text-pizarra-900">{rol}</dd>
             </div>
             <div className="min-w-0">
               <dt className="text-slate-500">Documento</dt>
@@ -80,12 +84,15 @@ export default function UserMenu({ user, onLogout }) {
 
           <div className="my-1 h-px bg-slate-100" />
 
-          {/* "Mi perfil" queda deshabilitado hasta que exista la página de perfil. */}
+          {/* "Mi perfil" abre la pestaña de datos personales de Configuración (Fase 3). */}
           <button
             type="button"
             role="menuitem"
-            disabled
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400"
+            onClick={() => {
+              close()
+              navigate('/dashboard/configuracion')
+            }}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-pizarra-800 transition-colors hover:bg-slate-100"
           >
             <CircleUserRound aria-hidden="true" className="size-[18px]" />
             <span className="flex-1 text-left">Mi perfil</span>

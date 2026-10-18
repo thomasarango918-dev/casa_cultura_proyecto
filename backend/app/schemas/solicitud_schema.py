@@ -110,8 +110,12 @@ class SolicitudCreate(BaseModel):
     @field_validator("nombres", "apellidos", mode="before")
     @classmethod
     def _limpiar_nombre(cls, value: object) -> object:
-        """Quita espacios sobrantes: '  ana   maría ' -> 'ana maría'."""
-        return " ".join(value.split()) if isinstance(value, str) else value
+        """Quita espacios sobrantes y pasa a MAYÚSCULAS: '  ana   maría ' -> 'ANA MARÍA'.
+
+        Fase 3: los nombres y apellidos se guardan siempre en mayúsculas, sin importar
+        cómo los escribió el aspirante. str.upper() respeta tildes y la eñe (ñ -> Ñ).
+        """
+        return " ".join(value.split()).upper() if isinstance(value, str) else value
 
     @field_validator(
         "acudiente_nombre", "acudiente_documento", "acudiente_telefono", "acudiente_parentesco", mode="before"

@@ -13,6 +13,11 @@
  *   /dashboard              Protegida. Requiere sesión y se muestra dentro de MainLayout.
  *   /dashboard/solicitudes  Protegida. Gestión de solicitudes radicadas.
  *   /dashboard/documentos   Protegida. Inventario de documentos (búsqueda por documento o radicado).
+ *   /dashboard/usuarios     Protegida. Usuarios y roles (Administrador y Coordinador).
+ *   /dashboard/configuracion Protegida. Configuración de la cuenta (todos los roles).
+ *
+ * Las rutas restringidas por rol van dentro de RoleRoute: si el rol no está permitido
+ * se muestra "Careces de los suficientes permisos" sin montar la página ni llamar a la API.
  *   /                       Redirige a /dashboard.
  *   *                       Cualquier otra URL redirige al inicio.
  */
@@ -20,13 +25,20 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import MainLayout from './components/layout/MainLayout'
 import ProtectedRoute from './components/routing/ProtectedRoute'
 import PublicOnlyRoute from './components/routing/PublicOnlyRoute'
+import RoleRoute from './components/routing/RoleRoute'
+import { ROL, ROLES_GESTION_USUARIOS } from './config/roles'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
+import ConfiguracionPage from './pages/ConfiguracionPage'
 import DashboardBasePage from './pages/DashboardBasePage'
 import DocumentosPage from './pages/DocumentosPage'
 import InscripcionPage from './pages/InscripcionPage'
 import LoginPage from './pages/LoginPage'
 import SolicitudesPage from './pages/SolicitudesPage'
+import UsuariosPage from './pages/UsuariosPage'
+
+/** Roles del BackOffice de radicación (BACKOFFICE_ROLES en config/navigation.js). */
+const ROLES_RADICACION = [ROL.ADMINISTRADOR, ROL.COORDINADOR]
 
 export default function App() {
   return (
@@ -46,8 +58,14 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<MainLayout />}>
                 <Route path="/dashboard" element={<DashboardBasePage />} />
-                <Route path="/dashboard/solicitudes" element={<SolicitudesPage />} />
-                <Route path="/dashboard/documentos" element={<DocumentosPage />} />
+                <Route path="/dashboard/configuracion" element={<ConfiguracionPage />} />
+                <Route element={<RoleRoute roles={ROLES_RADICACION} />}>
+                  <Route path="/dashboard/solicitudes" element={<SolicitudesPage />} />
+                  <Route path="/dashboard/documentos" element={<DocumentosPage />} />
+                </Route>
+                <Route element={<RoleRoute roles={ROLES_GESTION_USUARIOS} />}>
+                  <Route path="/dashboard/usuarios" element={<UsuariosPage />} />
+                </Route>
               </Route>
             </Route>
 

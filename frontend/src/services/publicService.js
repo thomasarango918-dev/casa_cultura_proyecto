@@ -16,6 +16,15 @@ export const UPLOAD_LIMITS = {
   accept: '.pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp',
 }
 
+/**
+ * Indica si el formulario admite radicaciones (lo define el Administrador en Configuración → Sistema).
+ * @returns {Promise<{inscripciones_abiertas: boolean}>}
+ */
+export async function fetchConfiguracionPublica() {
+  const { data } = await apiClient.get('/public/configuracion', PUBLIC_OPTIONS)
+  return data
+}
+
 /** @returns {Promise<Array<{id: number, nombre: string}>>} */
 export async function fetchProgramas() {
   const { data } = await apiClient.get('/public/programas', PUBLIC_OPTIONS)

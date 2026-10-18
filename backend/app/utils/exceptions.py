@@ -74,3 +74,18 @@ class EstadoSolicitudError(DomainError):
     """La solicitud ya fue evaluada y no admite otra decisión. El controlador responde 409."""
 
     default_message = "La solicitud ya fue evaluada y no admite cambios."
+
+
+# --------------------------------------------------------------------------- #
+# Fase 3: usuarios, roles y configuración
+# --------------------------------------------------------------------------- #
+class RegistroDuplicadoError(DomainError):
+    """Ya existe un usuario con el mismo correo o número de documento. Se responde 409."""
+
+    default_message = "Ya existe un registro con esos datos."
+
+
+class InscripcionesCerradasError(DomainError):
+    """El Administrador cerró las inscripciones públicas. El controlador responde 403."""
+
+    default_message = "En este momento no hay convocatorias abiertas."

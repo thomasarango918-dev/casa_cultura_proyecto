@@ -77,3 +77,19 @@ export function getApiErrorMessage(error, fallback = 'No fue posible completar l
 }
 
 export default apiClient
+
+/**
+ * Extrae los errores por campo de una respuesta 422 (formato `{detail, errores: [{campo, mensaje}]}`).
+ * Quita el prefijo técnico "Value error, " que Pydantic agrega a los mensajes propios.
+ *
+ * @param {unknown} error Error capturado en un bloque catch.
+ * @returns {Record<string, string>} Mensaje por nombre de campo (vacío si no hay errores por campo).
+ */
+export function getApiFieldErrors(error) {
+  const fieldErrors = {}
+  for (const item of error?.response?.data?.errores ?? []) {
+    const field = item.campo?.split('.').pop()
+    if (field && !fieldErrors[field]) fieldErrors[field] = String(item.mensaje ?? '').replace(/^Value error,\s*/i, '')
+  }
+  return fieldErrors
+}

@@ -2,11 +2,13 @@
 Capa Controlador (MVC): radicación pública de solicitudes (SIN autenticación).
 
 Rutas (montadas en main.py bajo /api/v1):
+    GET  /api/v1/public/configuracion     Si hay inscripciones abiertas (Fase 3).
     GET  /api/v1/public/programas         Programas que el aspirante puede elegir.
     GET  /api/v1/public/tipos-documento   Tipos de documento de identidad admitidos.
     GET  /api/v1/public/parentescos       Parentescos para el acudiente de un menor de edad.
     GET  /api/v1/public/requisitos        Documentos que el aspirante debe adjuntar.
     POST /api/v1/public/solicitudes       Radica una solicitud con sus documentos (multipart/form-data).
+                                          403 si las inscripciones están cerradas.
 """
 
 from datetime import date
@@ -18,7 +20,9 @@ from pydantic import ValidationError
 
 from app.config.uploads import MAX_FILES_PER_REQUEST
 from app.dependencies.solicitud_dependencies import get_solicitud_service
+from app.dependencies.usuario_dependencies import get_configuracion_sistema_service
 from app.schemas.auth_schema import MensajeError
+from app.schemas.configuracion_schema import ConfiguracionPublicaOut
 from app.schemas.solicitud_schema import (
     ParentescoOut,
     ProgramaOut,
@@ -27,11 +31,24 @@ from app.schemas.solicitud_schema import (
     SolicitudCreate,
     TipoDocumentoOut,
 )
+from app.services.configuracion_sistema_service import ConfiguracionSistemaService
 from app.services.solicitud_service import SolicitudService
-from app.utils.exceptions import DatosInvalidosError
+from app.utils.exceptions import DatosInvalidosError, InscripcionesCerradasError
 from app.utils.file_storage import read_upload
 
 router = APIRouter(prefix="/public", tags=["Radicación pública"])
+
+
+@router.get(
+    "/configuracion",
+    response_model=ConfiguracionPublicaOut,
+    summary="Estado de las inscripciones",
+    description="Indica si el formulario público admite radicaciones. No expone otros datos de la configuración.",
+)
+def get_configuracion_publica(
+    service: ConfiguracionSistemaService = Depends(get_configuracion_sistema_service),
+) -> ConfiguracionPublicaOut:
+    return service.estado_publico()
 
 
 @router.get("/programas", response_model=list[ProgramaOut], summary="Programas disponibles")
@@ -54,6 +71,15 @@ def list_requisitos(service: SolicitudService = Depends(get_solicitud_service)) 
     return service.list_requisitos()
 
 
+def _inscripciones_abiertas(service: SolicitudService = Depends(get_solicitud_service)) -> None:
+    """Se resuelve antes de validar el formulario: con inscripciones cerradas la respuesta
+    siempre es 403, aunque los datos estén incompletos."""
+    try:
+        service.verificar_inscripciones_abiertas()
+    except InscripcionesCerradasError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.message) from exc
+
+
 def _validation_error(errores: list[tuple[str, str]]) -> RequestValidationError:
     """Arma un 422 con el mismo formato del manejador global (campo + mensaje)."""
     return RequestValidationError(
@@ -65,6 +91,7 @@ def _validation_error(errores: list[tuple[str, str]]) -> RequestValidationError:
     "/solicitudes",
     response_model=RadicadoResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(_inscripciones_abiertas)],
     summary="Radicar solicitud de inscripción",
     description=(
         "Recibe en multipart/form-data los datos del aspirante (incluida la fecha de nacimiento y la "
@@ -75,6 +102,7 @@ def _validation_error(errores: list[tuple[str, str]]) -> RequestValidationError:
     ),
     responses={
         status.HTTP_400_BAD_REQUEST: {"model": MensajeError, "description": "Archivo o dato no válido"},
+        status.HTTP_403_FORBIDDEN: {"model": MensajeError, "description": "Inscripciones cerradas"},
     },
 )
 def radicar_solicitud(
@@ -97,6 +125,7 @@ def radicar_solicitud(
     ] = None,
     service: SolicitudService = Depends(get_solicitud_service),
 ) -> RadicadoResponse:
+    # 0. Las inscripciones abiertas ya se verificaron en la dependencia _inscripciones_abiertas.
     # 1. Validación de los datos personales con el esquema (mensajes en español).
     try:
         data = SolicitudCreate.model_validate(
@@ -144,5 +173,8 @@ def radicar_solicitud(
         ]
         # 4. Registro de la solicitud y de los documentos.
         return service.radicar(data, documentos)
+    except InscripcionesCerradasError as exc:
+        # Se cerraron mientras se procesaba la solicitud.
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.message) from exc
     except DatosInvalidosError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc

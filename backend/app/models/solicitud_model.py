@@ -3,7 +3,7 @@ Capa Modelo (MVC): radicación de solicitudes de inscripción.
 
 Mapea las tablas creadas por database/fase2_solicitudes.sql y ampliadas por
 database/fase2_ajustes_inscripcion.sql (fecha de nacimiento, edad, acudiente y
-requisito de cada documento):
+requisito de cada documento) y por database/fase3_configuracion_sistema.sql (periodo):
 
     TBL_SolicitudInscripcion  -> SolicitudInscripcion
     TBL_DocumentoInscripcion  -> DocumentoInscripcion
@@ -69,6 +69,8 @@ class SolicitudInscripcion(Base):
     acudiente_parentesco: Mapped[str | None] = mapped_column(
         "acudiente_parentesco", ForeignKey("tbl_parentesco.parentesco"), nullable=True
     )
+    # Fase 3: periodo académico vigente al radicar (NULL en solicitudes anteriores).
+    periodo: Mapped[str | None] = mapped_column("periodo", String(20), nullable=True)
 
     # El programa se necesita en todos los listados: se carga en la misma consulta.
     programa: Mapped[Programa] = relationship(lazy="joined")

@@ -7,7 +7,10 @@
  *   'anonymous'      Sin sesión; las rutas protegidas redirigen al login.
  *
  * Uso desde cualquier componente:
- *   const { user, isAuthenticated, login, logout } = useAuth()
+ *   const { user, isAuthenticated, login, logout, updateUser } = useAuth()
+ *
+ * `updateUser(datos)` refleja en la sesión los datos que el usuario cambió de su cuenta
+ * (por ejemplo, desde Configuración) sin volver a iniciar sesión.
  *
  * La sesión se cierra automáticamente cuando:
  *   - El token llega a su fecha de vencimiento (temporizador local).
@@ -92,6 +95,16 @@ export function AuthProvider({ children }) {
     return data.usuario
   }, [])
 
+  /** Combina los datos nuevos del usuario con los actuales y los guarda junto al token vigente. */
+  const updateUser = useCallback((changes) => {
+    setState((current) => {
+      if (current.status !== 'authenticated' || !current.user) return current
+      const user = { ...current.user, ...changes }
+      updateSessionUser(user)
+      return { ...current, user }
+    })
+  }, [])
+
   // Valida el token guardado al recargar la aplicación.
   useEffect(() => {
     if (state.status !== 'checking') return undefined
@@ -145,8 +158,9 @@ export function AuthProvider({ children }) {
       isAuthenticated: state.status === 'authenticated',
       login,
       logout,
+      updateUser,
     }),
-    [state, login, logout],
+    [state, login, logout, updateUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
