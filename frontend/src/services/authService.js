@@ -32,3 +32,36 @@ export async function fetchCurrentUser() {
   const { data } = await apiClient.get('/auth/me', { skipAuthRedirect: true })
   return data
 }
+
+/**
+ * Fase 4: pide el enlace de recuperación de contraseña por número de documento.
+ * La API responde siempre 200 con un mensaje genérico (exista o no el documento).
+ *
+ * @param {string} numeroDocumento
+ * @returns {Promise<{mensaje: string}>}
+ */
+export async function solicitarRecuperacion(numeroDocumento) {
+  const { data } = await apiClient.post(
+    '/auth/forgot-password',
+    { numero_documento: numeroDocumento },
+    { skipAuth: true, skipAuthRedirect: true },
+  )
+  return data
+}
+
+/**
+ * Fase 4: cambia la contraseña con el token recibido en el enlace del correo.
+ * Responde 400 si el enlace venció, ya se usó o no es válido.
+ *
+ * @param {string} token
+ * @param {string} nuevaContrasena
+ * @returns {Promise<{mensaje: string}>}
+ */
+export async function restablecerPassword(token, nuevaContrasena) {
+  const { data } = await apiClient.post(
+    '/auth/reset-password',
+    { token, nueva_contrasena: nuevaContrasena },
+    { skipAuth: true, skipAuthRedirect: true },
+  )
+  return data
+}

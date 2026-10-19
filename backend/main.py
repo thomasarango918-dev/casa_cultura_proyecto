@@ -28,6 +28,7 @@ from app.controllers import (
     dashboard_controller,
     documento_controller,
     public_controller,
+    recuperacion_controller,
     solicitud_controller,
     usuario_controller,
 )
@@ -100,6 +101,7 @@ register_exception_handlers(app)
 # (por ejemplo, solicitudes) basta con incluir aquí su router.
 api_v1 = APIRouter(prefix=settings.API_V1_PREFIX)
 api_v1.include_router(auth_controller.router)
+api_v1.include_router(recuperacion_controller.router)  # Fase 4: recuperación de contraseña.
 api_v1.include_router(public_controller.router)  # Fase 2: sin token.
 api_v1.include_router(solicitud_controller.router)  # Fase 2: BackOffice con token.
 api_v1.include_router(dashboard_controller.router)

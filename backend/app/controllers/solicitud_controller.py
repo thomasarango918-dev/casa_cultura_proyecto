@@ -10,13 +10,14 @@ Rutas (montadas en main.py bajo /api/v1). Requieren rol Administrador o Coordina
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query, status
 from fastapi.responses import FileResponse
 
 from app.dependencies.solicitud_dependencies import get_solicitud_service, require_backoffice
 from app.models.user_model import Usuario
 from app.schemas.auth_schema import MensajeError
 from app.schemas.solicitud_schema import EvaluacionRequest, SolicitudDetalle, SolicitudListResponse
+from app.services.email_service import notificar_solicitud_evaluada
 from app.services.solicitud_service import SolicitudService
 from app.utils.exceptions import EstadoSolicitudError, RecursoNoEncontradoError
 
@@ -75,15 +76,29 @@ def get_solicitud(
 def evaluar_solicitud(
     solicitud_id: SolicitudId,
     evaluacion: EvaluacionRequest,
+    background_tasks: BackgroundTasks,
     usuario: Usuario = Depends(require_backoffice),
     service: SolicitudService = Depends(get_solicitud_service),
 ) -> SolicitudDetalle:
     try:
-        return service.evaluar(solicitud_id, evaluacion, usuario)
+        detalle = service.evaluar(solicitud_id, evaluacion, usuario)
     except RecursoNoEncontradoError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.message) from exc
     except EstadoSolicitudError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc
+
+    # Fase 4: la decisión ya quedó guardada. Se avisa al aspirante en segundo plano
+    # (APROBADO -> correo de aprobación; RECHAZADO -> correo de rechazo con la justificación).
+    background_tasks.add_task(
+        notificar_solicitud_evaluada,
+        detalle.correo_electronico,
+        detalle.nombre_completo,
+        detalle.numero_radicado,
+        detalle.programa,
+        detalle.estado,
+        detalle.justificacion_respuesta or "",
+    )
+    return detalle
 
 
 @router.get(

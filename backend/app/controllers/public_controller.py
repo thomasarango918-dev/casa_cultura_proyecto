@@ -14,7 +14,7 @@ Rutas (montadas en main.py bajo /api/v1):
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
@@ -32,6 +32,7 @@ from app.schemas.solicitud_schema import (
     TipoDocumentoOut,
 )
 from app.services.configuracion_sistema_service import ConfiguracionSistemaService
+from app.services.email_service import notificar_solicitud_radicada
 from app.services.solicitud_service import SolicitudService
 from app.utils.exceptions import DatosInvalidosError, InscripcionesCerradasError
 from app.utils.file_storage import read_upload
@@ -106,6 +107,7 @@ def _validation_error(errores: list[tuple[str, str]]) -> RequestValidationError:
     },
 )
 def radicar_solicitud(
+    background_tasks: BackgroundTasks,
     nombres: Annotated[str, Form()],
     apellidos: Annotated[str, Form()],
     tipo_documento: Annotated[str, Form()],
@@ -172,9 +174,20 @@ def radicar_solicitud(
             for codigo, archivo in zip(requisitos, archivos, strict=True)
         ]
         # 4. Registro de la solicitud y de los documentos.
-        return service.radicar(data, documentos)
+        radicado = service.radicar(data, documentos)
     except InscripcionesCerradasError as exc:
         # Se cerraron mientras se procesaba la solicitud.
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.message) from exc
     except DatosInvalidosError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
+
+    # 5. Fase 4: la solicitud ya quedó guardada. Los correos (aspirante y BackOffice) se envían
+    #    en segundo plano, después de responder, para no demorar al aspirante.
+    background_tasks.add_task(
+        notificar_solicitud_radicada,
+        radicado.correo_electronico,
+        radicado.nombre_completo,
+        radicado.numero_radicado,
+        radicado.programa,
+    )
+    return radicado

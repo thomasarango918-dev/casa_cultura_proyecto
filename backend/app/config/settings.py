@@ -51,6 +51,32 @@ class Settings(BaseSettings):
     # Orígenes del frontend autorizados. En el archivo .env se escribe como lista JSON.
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    # ---- Correo electrónico (Fase 4) ----------------------------------------
+    # Todas son opcionales. El proveedor se elige solo:
+    #   1. RESEND_API_KEY con valor  -> se envía con Resend.
+    #   2. SMTP_HOST con valor       -> se envía por SMTP (Gmail, Outlook, servidor propio...).
+    #   3. Ninguno de los dos        -> el correo solo se escribe en la consola (modo desarrollo).
+    RESEND_API_KEY: str = ""
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_SSL: bool = False  # True para el puerto 465; False usa STARTTLS (puerto 587).
+    # Remitente que verá el destinatario. Con Resend debe ser de un dominio verificado.
+    EMAIL_FROM: str = "Casa de la Cultura <onboarding@resend.dev>"
+    # Correo del BackOffice que recibe el aviso de cada nueva solicitud.
+    EMAIL_ADMIN: str = ""
+    # Dirección del frontend; se usa para armar el enlace de recuperación de contraseña.
+    FRONTEND_URL: str = "http://localhost:5173"
+    # Vigencia del enlace de recuperación de contraseña.
+    PASSWORD_RESET_EXPIRE_MINUTES: int = Field(default=15, gt=0)
+
+    @field_validator("FRONTEND_URL")
+    @classmethod
+    def _normalize_frontend_url(cls, value: str) -> str:
+        """Quita espacios y la barra final para no generar enlaces con "//"."""
+        return value.strip().rstrip("/")
+
     @field_validator("CORS_ORIGINS")
     @classmethod
     def _normalize_origins(cls, value: list[str]) -> list[str]:

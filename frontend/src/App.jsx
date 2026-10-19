@@ -10,6 +10,8 @@
  * Rutas:
  *   /login                  Pública. Si ya hay sesión, redirige al panel.
  *   /inscripcion            Pública y aislada: formulario de inscripción sin sesión ni MainLayout.
+ *   /forgot-password        Pública (Fase 4): pide el enlace de recuperación de contraseña.
+ *   /reset-password         Pública (Fase 4): nueva contraseña con el token del enlace (?token=...).
  *   /dashboard              Protegida. Requiere sesión y se muestra dentro de MainLayout.
  *   /dashboard/solicitudes  Protegida. Gestión de solicitudes radicadas.
  *   /dashboard/documentos   Protegida. Inventario de documentos (búsqueda por documento o radicado).
@@ -32,8 +34,10 @@ import { ToastProvider } from './context/ToastContext'
 import ConfiguracionPage from './pages/ConfiguracionPage'
 import DashboardBasePage from './pages/DashboardBasePage'
 import DocumentosPage from './pages/DocumentosPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import InscripcionPage from './pages/InscripcionPage'
 import LoginPage from './pages/LoginPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import SolicitudesPage from './pages/SolicitudesPage'
 import UsuariosPage from './pages/UsuariosPage'
 
@@ -53,6 +57,10 @@ export default function App() {
 
             {/* Formulario público: accesible con o sin sesión, fuera del marco del BackOffice. */}
             <Route path="/inscripcion" element={<InscripcionPage />} />
+
+            {/* Fase 4: recuperación de contraseña. Accesibles con o sin sesión (el enlace llega por correo). */}
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* Rutas protegidas dentro del marco principal. Las páginas nuevas se agregan aquí. */}
             <Route element={<ProtectedRoute />}>

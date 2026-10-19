@@ -11,6 +11,7 @@ Tokens JWT:
     y su emisor antes de aceptarlo.
 """
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -148,4 +149,63 @@ def decode_access_token(token: str) -> dict[str, Any]:
 
     if payload.get("type") != "access":
         raise TokenInvalidoError()
+    return payload
+
+
+# --------------------------------------------------------------------------- #
+# Fase 4: token de recuperación de contraseña
+# --------------------------------------------------------------------------- #
+# Tipo propio: decode_access_token rechaza este token, así que un enlace de
+# recuperación nunca sirve para iniciar sesión (y viceversa).
+PASSWORD_RESET_TOKEN_TYPE = "password_reset"
+
+
+def password_fingerprint(hashed_password: str) -> str:
+    """Huella corta del hash actual de la contraseña.
+
+    Va dentro del token de recuperación. Cuando la contraseña cambia, la huella
+    deja de coincidir y el enlace ya no sirve: así cada enlace se usa una sola vez.
+    """
+    return hashlib.sha256(hashed_password.encode("utf-8")).hexdigest()[:16]
+
+
+def create_password_reset_token(documento: str, password_hash: str) -> str:
+    """Firma un JWT de recuperación de contraseña (vence en PASSWORD_RESET_EXPIRE_MINUTES, 15 por defecto).
+
+    Args:
+        documento: Número de documento del usuario (queda en "sub").
+        password_hash: Hash actual de la contraseña, para calcular la huella de un solo uso.
+    """
+    issued_at = datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "sub": documento,
+        "pwd": password_fingerprint(password_hash),
+        "iat": issued_at,
+        "exp": issued_at + timedelta(minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES),
+        "iss": settings.JWT_ISSUER,
+        "type": PASSWORD_RESET_TOKEN_TYPE,
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> dict[str, Any]:
+    """Valida un token de recuperación y devuelve sus datos (sub = documento, pwd = huella).
+
+    Raises:
+        TokenInvalidoError: El token venció, fue alterado o no es de recuperación.
+    """
+    mensaje = "El enlace de recuperación no es válido o ya expiró. Solicite uno nuevo."
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+            issuer=settings.JWT_ISSUER,
+            options={"require": ["sub", "exp", "iat", "iss"]},
+        )
+    except jwt.PyJWTError as exc:
+        raise TokenInvalidoError(mensaje) from exc
+
+    if payload.get("type") != PASSWORD_RESET_TOKEN_TYPE or not payload.get("pwd"):
+        raise TokenInvalidoError(mensaje)
     return payload

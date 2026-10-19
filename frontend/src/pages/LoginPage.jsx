@@ -13,6 +13,7 @@
  *      incorrecta, se limpia el campo y se le devuelve el foco.
  */
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Eye, EyeOff, KeyRound, Lock, TriangleAlert, UserRound } from 'lucide-react'
 import BrandMark from '../components/brand/BrandMark'
 import TopographicPattern from '../components/brand/TopographicPattern'
@@ -256,14 +257,24 @@ export default function LoginPage() {
             >
               Iniciar sesión
             </Button>
+
+            {/* Fase 4: recuperación de contraseña por número de documento. */}
+            <p className="text-center">
+              <Link
+                to="/forgot-password"
+                className="text-sm font-medium text-pizarra-700 hover:text-pizarra-950 hover:underline"
+              >
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </p>
           </form>
 
           {/* Ayuda para recuperar la contraseña */}
           <div className="mt-8 flex gap-3 rounded-xl bg-slate-50 p-4 text-sm leading-relaxed text-slate-600 ring-1 ring-slate-200/70">
             <KeyRound aria-hidden="true" className="mt-0.5 size-[18px] shrink-0 text-pizarra-500" />
             <p>
-              ¿Olvidó su contraseña? Solicite el restablecimiento a la coordinación académica de la Casa de
-              la Cultura.
+              ¿Ya no tiene acceso al correo registrado? Solicite el restablecimiento a la coordinación académica
+              de la Casa de la Cultura.
             </p>
           </div>
 
