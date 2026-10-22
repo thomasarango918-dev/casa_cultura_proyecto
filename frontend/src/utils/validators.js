@@ -61,3 +61,15 @@ export function validarPassword(value) {
   if (fallida) return `La contraseña debe tener: ${fallida.label.toLowerCase()}.`
   return ''
 }
+
+// Fase 5: nombres de categorías y programas (deben coincidir con backend/app/schemas/programa_schema.py).
+export const CATALOGO_NOMBRE_MIN = 3
+export const CATALOGO_NOMBRE_MAX = 100
+export const CATALOGO_DESCRIPCION_MAX = 500
+
+export function validarNombreCatalogo(value) {
+  const nombre = limpiarEspacios(value)
+  if (!nombre) return 'Escriba el nombre.'
+  if (nombre.length < CATALOGO_NOMBRE_MIN) return `El nombre debe tener al menos ${CATALOGO_NOMBRE_MIN} caracteres.`
+  return ''
+}

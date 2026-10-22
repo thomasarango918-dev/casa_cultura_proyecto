@@ -39,6 +39,9 @@ export const TODOS_LOS_ROLES = Object.values(ROL)
 /** Roles que entran al módulo de usuarios (ROLES_GESTION_USUARIOS en el backend). */
 export const ROLES_GESTION_USUARIOS = [ROL.ADMINISTRADOR, ROL.COORDINADOR]
 
+/** Fase 5: roles que administran categorías y programas (ROLES_GESTION_PROGRAMAS en el backend). */
+export const ROLES_GESTION_PROGRAMAS = [ROL.ADMINISTRADOR, ROL.COORDINADOR]
+
 /** 'Profesor' -> 'MAESTRO'. Devuelve null si el rol no es uno de los cuatro conocidos. */
 export function claveRol(nombre) {
   return ALIAS[String(nombre ?? '').trim().toLowerCase()] ?? null

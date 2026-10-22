@@ -27,6 +27,7 @@ from app.controllers import (
     configuracion_sistema_controller,
     dashboard_controller,
     documento_controller,
+    programa_controller,
     public_controller,
     recuperacion_controller,
     solicitud_controller,
@@ -109,6 +110,8 @@ api_v1.include_router(documento_controller.router)  # Inventario de documentos.
 api_v1.include_router(usuario_controller.router)  # Fase 3: usuarios y roles.
 api_v1.include_router(configuracion_controller.router)  # Fase 3: configuración de la cuenta.
 api_v1.include_router(configuracion_sistema_controller.router)  # Fase 3: inscripciones y periodo.
+api_v1.include_router(programa_controller.categorias_router)  # Fase 5: categorías.
+api_v1.include_router(programa_controller.programas_router)  # Fase 5: programas.
 app.include_router(api_v1)
 
 

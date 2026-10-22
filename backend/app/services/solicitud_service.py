@@ -219,9 +219,13 @@ class SolicitudService:
         self.verificar_inscripciones_abiertas()
         documentos = self._validar_documentos(documentos)
 
-        programa = self._repository.get_programa(data.programa_id)
-        if programa is None:
+        # Fase 5: solo programas de categorías activas (los programas sin categoría no se ofrecen).
+        encontrado = self._repository.get_programa_para_radicar(data.programa_id)
+        if encontrado is None:
             raise DatosInvalidosError("El programa seleccionado no existe.")
+        programa, categoria_activa = encontrado
+        if not categoria_activa:
+            raise DatosInvalidosError("El programa seleccionado no está disponible para inscripciones.")
         if not self._repository.tipo_documento_exists(data.tipo_documento):
             raise DatosInvalidosError("El tipo de documento seleccionado no es válido.")
 

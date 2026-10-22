@@ -39,6 +39,9 @@ _ETIQUETAS: dict[str, str] = {
 # Roles que pueden entrar al módulo de usuarios.
 ROLES_GESTION_USUARIOS = ("Administrador", "Coordinador")
 
+# Fase 5: roles que administran categorías y programas.
+ROLES_GESTION_PROGRAMAS = ("Administrador", "Coordinador")
+
 # Único rol que puede cambiar la configuración del sistema (inscripciones y periodo).
 ROL_ADMINISTRADOR = "Administrador"
 

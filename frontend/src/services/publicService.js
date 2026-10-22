@@ -25,7 +25,10 @@ export async function fetchConfiguracionPublica() {
   return data
 }
 
-/** @returns {Promise<Array<{id: number, nombre: string}>>} */
+/**
+ * Programas agrupados por categoría; la API solo envía categorías activas con programas.
+ * @returns {Promise<Array<{id: number, nombre: string, descripcion: string|null, programas: Array<{id: number, nombre: string}>}>>}
+ */
 export async function fetchProgramas() {
   const { data } = await apiClient.get('/public/programas', PUBLIC_OPTIONS)
   return data

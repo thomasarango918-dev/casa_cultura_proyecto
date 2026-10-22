@@ -16,7 +16,7 @@
  * @param {React.ReactNode} [props.footer] Barra de acciones inferior.
  * @param {() => void} props.onClose Cierra el modal.
  * @param {boolean} [props.dismissible] Permite cerrar con Escape, el fondo o la X.
- * @param {'sm'|'md'|'lg'} [props.size] Ancho máximo del panel.
+ * @param {'sm'|'md'|'lg'|'xl'} [props.size] Ancho máximo del panel.
  * @param {string} [props.layer] Clase z-index; un modal encima de otro usa uno mayor.
  * @param {string} [props.role] 'dialog' o 'alertdialog'.
  */
@@ -27,6 +27,7 @@ const SIZES = {
   sm: 'max-w-md',
   md: 'max-w-lg',
   lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
 }
 
 export default function Modal({

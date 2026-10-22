@@ -3,7 +3,7 @@ Capa Controlador (MVC): radicación pública de solicitudes (SIN autenticación)
 
 Rutas (montadas en main.py bajo /api/v1):
     GET  /api/v1/public/configuracion     Si hay inscripciones abiertas (Fase 3).
-    GET  /api/v1/public/programas         Programas que el aspirante puede elegir.
+    GET  /api/v1/public/programas         Programas agrupados por categoría (solo categorías activas).
     GET  /api/v1/public/tipos-documento   Tipos de documento de identidad admitidos.
     GET  /api/v1/public/parentescos       Parentescos para el acudiente de un menor de edad.
     GET  /api/v1/public/requisitos        Documentos que el aspirante debe adjuntar.
@@ -19,13 +19,14 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
 from app.config.uploads import MAX_FILES_PER_REQUEST
+from app.dependencies.programa_dependencies import get_programa_service
 from app.dependencies.solicitud_dependencies import get_solicitud_service
 from app.dependencies.usuario_dependencies import get_configuracion_sistema_service
 from app.schemas.auth_schema import MensajeError
 from app.schemas.configuracion_schema import ConfiguracionPublicaOut
+from app.schemas.programa_schema import CategoriaPublicaOut
 from app.schemas.solicitud_schema import (
     ParentescoOut,
-    ProgramaOut,
     RadicadoResponse,
     RequisitoOut,
     SolicitudCreate,
@@ -33,6 +34,7 @@ from app.schemas.solicitud_schema import (
 )
 from app.services.configuracion_sistema_service import ConfiguracionSistemaService
 from app.services.email_service import notificar_solicitud_radicada
+from app.services.programa_service import ProgramaService
 from app.services.solicitud_service import SolicitudService
 from app.utils.exceptions import DatosInvalidosError, InscripcionesCerradasError
 from app.utils.file_storage import read_upload
@@ -52,9 +54,14 @@ def get_configuracion_publica(
     return service.estado_publico()
 
 
-@router.get("/programas", response_model=list[ProgramaOut], summary="Programas disponibles")
-def list_programas(service: SolicitudService = Depends(get_solicitud_service)) -> list[ProgramaOut]:
-    return service.list_programas()
+@router.get(
+    "/programas",
+    response_model=list[CategoriaPublicaOut],
+    summary="Programas disponibles por categoría",
+    description="Fase 5: categorías activas con sus programas. Las categorías sin programas no se incluyen.",
+)
+def list_programas(service: ProgramaService = Depends(get_programa_service)) -> list[CategoriaPublicaOut]:
+    return service.catalogo_publico()
 
 
 @router.get("/tipos-documento", response_model=list[TipoDocumentoOut], summary="Tipos de documento")

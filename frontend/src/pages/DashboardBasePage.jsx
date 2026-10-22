@@ -69,7 +69,8 @@ const RECENT_LIMIT = 5
 const MODULES = [
   { name: 'Acceso y autenticación', available: true },
   { name: 'Radicación pública de inscripciones', available: true },
-  { name: 'Programas y grupos', available: false },
+  { name: 'Programas y categorías', available: true },
+  { name: 'Grupos', available: false },
   { name: 'Control de asistencia', available: false },
 ]
 

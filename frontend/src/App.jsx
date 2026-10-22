@@ -15,6 +15,7 @@
  *   /dashboard              Protegida. Requiere sesión y se muestra dentro de MainLayout.
  *   /dashboard/solicitudes  Protegida. Gestión de solicitudes radicadas.
  *   /dashboard/documentos   Protegida. Inventario de documentos (búsqueda por documento o radicado).
+ *   /dashboard/programas    Protegida. Categorías y programas (Administrador y Coordinador).
  *   /dashboard/usuarios     Protegida. Usuarios y roles (Administrador y Coordinador).
  *   /dashboard/configuracion Protegida. Configuración de la cuenta (todos los roles).
  *
@@ -28,7 +29,7 @@ import MainLayout from './components/layout/MainLayout'
 import ProtectedRoute from './components/routing/ProtectedRoute'
 import PublicOnlyRoute from './components/routing/PublicOnlyRoute'
 import RoleRoute from './components/routing/RoleRoute'
-import { ROL, ROLES_GESTION_USUARIOS } from './config/roles'
+import { ROL, ROLES_GESTION_PROGRAMAS, ROLES_GESTION_USUARIOS } from './config/roles'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
 import ConfiguracionPage from './pages/ConfiguracionPage'
@@ -37,6 +38,7 @@ import DocumentosPage from './pages/DocumentosPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import InscripcionPage from './pages/InscripcionPage'
 import LoginPage from './pages/LoginPage'
+import ProgramasPage from './pages/ProgramasPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import SolicitudesPage from './pages/SolicitudesPage'
 import UsuariosPage from './pages/UsuariosPage'
@@ -70,6 +72,9 @@ export default function App() {
                 <Route element={<RoleRoute roles={ROLES_RADICACION} />}>
                   <Route path="/dashboard/solicitudes" element={<SolicitudesPage />} />
                   <Route path="/dashboard/documentos" element={<DocumentosPage />} />
+                </Route>
+                <Route element={<RoleRoute roles={ROLES_GESTION_PROGRAMAS} />}>
+                  <Route path="/dashboard/programas" element={<ProgramasPage />} />
                 </Route>
                 <Route element={<RoleRoute roles={ROLES_GESTION_USUARIOS} />}>
                   <Route path="/dashboard/usuarios" element={<UsuariosPage />} />

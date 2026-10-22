@@ -7,7 +7,8 @@
  * Flujo en tres pasos:
  *   1. Datos personales, fecha de nacimiento y edad (calculada). Si el aspirante
  *      es menor de 18 años aparece la sección obligatoria "Datos del acudiente".
- *   2. Programa o taller de interés.
+ *   2. Programa: primero la categoría y luego un programa de esa categoría (Fase 5;
+ *      GET /public/programas ya llega agrupado y solo con categorías activas).
  *   3. Documentos: un espacio de carga por cada documento requerido
  *      (GET /public/requisitos): documento de identidad, certificado de EPS y
  *      formato de inscripción firmado.
@@ -25,23 +26,17 @@ import {
   CalendarDays,
   CalendarX,
   Check,
+  ChevronRight,
   CircleCheck,
   CloudUpload,
   Copy,
-  Drama,
-  Feather,
   FileImage,
   FileText,
-  Footprints,
-  GraduationCap,
   IdCard,
   LoaderCircle,
   Mail,
-  Music,
-  Palette,
   Phone,
   RefreshCw,
-  Scissors,
   Send,
   TriangleAlert,
   UserRound,
@@ -65,6 +60,7 @@ import {
   UPLOAD_LIMITS,
 } from '../services/publicService'
 import { formatDateTime, formatFileSize } from '../utils/formatters'
+import { getProgramIcon } from '../utils/programIcons'
 
 const STEPS = [
   { id: 'datos', title: 'Datos personales', description: 'Identificación y contacto' },
@@ -149,18 +145,6 @@ function calcularEdad(fechaIso) {
   }
   const cumpleanosPendiente = today[1] < month || (today[1] === month && today[2] < day)
   return today[0] - year - (cumpleanosPendiente ? 1 : 0)
-}
-
-/** Icono representativo de cada programa según su nombre. */
-function getProgramIcon(nombre = '') {
-  const value = nombre.toLowerCase()
-  if (value.includes('música') || value.includes('musica')) return Music
-  if (value.includes('danza')) return Footprints
-  if (value.includes('teatro')) return Drama
-  if (value.includes('plástic') || value.includes('plastic') || value.includes('pintura')) return Palette
-  if (value.includes('literatura') || value.includes('escritura')) return Feather
-  if (value.includes('artesan') || value.includes('oficio')) return Scissors
-  return GraduationCap
 }
 
 /** Valida los campos de un paso. Devuelve los mensajes de error por campo. */
@@ -499,7 +483,7 @@ export default function InscripcionPage() {
   const [errors, setErrors] = useState({})
   const [catalogos, setCatalogos] = useState({
     status: 'loading',
-    programas: [],
+    categorias: [],
     tipos: [],
     parentescos: [],
     requisitos: [],
@@ -509,6 +493,8 @@ export default function InscripcionPage() {
   const [submitting, setSubmitting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [resultado, setResultado] = useState(null)
+  // Paso 2 en dos tiempos: categoría elegida (null = se muestran las categorías).
+  const [categoriaId, setCategoriaId] = useState(null)
 
   const headingRef = useRef(null)
   const isFirstRender = useRef(true)
@@ -520,15 +506,15 @@ export default function InscripcionPage() {
   const loadCatalogos = useCallback(async () => {
     setCatalogos((current) => ({ ...current, status: 'loading' }))
     try {
-      const [programas, tipos, parentescos, requisitos] = await Promise.all([
+      const [categorias, tipos, parentescos, requisitos] = await Promise.all([
         fetchProgramas(),
         fetchTiposDocumento(),
         fetchParentescos(),
         fetchRequisitos(),
       ])
-      setCatalogos({ status: 'ready', programas, tipos, parentescos, requisitos })
+      setCatalogos({ status: 'ready', categorias, tipos, parentescos, requisitos })
     } catch {
-      setCatalogos({ status: 'error', programas: [], tipos: [], parentescos: [], requisitos: [] })
+      setCatalogos({ status: 'error', categorias: [], tipos: [], parentescos: [], requisitos: [] })
     }
   }, [])
 
@@ -566,6 +552,16 @@ export default function InscripcionPage() {
     if (errors[name] || (name === 'fecha_nacimiento' && errors.edad)) {
       setErrors((current) => ({ ...current, [name]: undefined, edad: undefined }))
     }
+  }
+
+  function selectCategoria(id) {
+    setCategoriaId(id)
+    const categoria = catalogos.categorias.find((item) => item.id === id)
+    // El programa elegido antes solo se conserva si pertenece a la nueva categoría.
+    if (!categoria?.programas.some((programa) => String(programa.id) === form.programa_id)) {
+      setForm((current) => ({ ...current, programa_id: '' }))
+    }
+    if (errors.programa_id) setErrors((current) => ({ ...current, programa_id: undefined }))
   }
 
   function selectPrograma(id) {
@@ -625,7 +621,8 @@ export default function InscripcionPage() {
     if (Object.keys(validation).length > 0) {
       // Foco en el primer campo con error.
       const firstField = Object.keys(validation)[0]
-      document.getElementById(firstField === 'programa_id' ? 'programa-0' : firstField)?.focus()
+      const programaFocus = categoriaId ? 'programa-0' : 'categoria-0'
+      document.getElementById(firstField === 'programa_id' ? programaFocus : firstField)?.focus()
       return
     }
     setStep((current) => Math.min(current + 1, STEPS.length - 1))
@@ -676,6 +673,13 @@ export default function InscripcionPage() {
         const field = item.campo?.split('.').pop()
         if (field) fieldErrors[field] = item.mensaje
       }
+      // 400 del programa: se deshabilitó su categoría o se eliminó mientras se llenaba el formulario.
+      if (error.response?.status === 400 && /programa/i.test(getApiErrorMessage(error))) {
+        fieldErrors.programa_id = getApiErrorMessage(error)
+        setForm((current) => ({ ...current, programa_id: '' }))
+        setCategoriaId(null)
+        loadCatalogos()
+      }
       if (Object.keys(fieldErrors).length > 0) {
         setErrors(fieldErrors)
         const stepWithError = STEP_FIELDS.findIndex((fields) => fields.some((field) => fieldErrors[field]))
@@ -693,10 +697,12 @@ export default function InscripcionPage() {
     setErrors({})
     setProgress(0)
     setResultado(null)
+    setCategoriaId(null)
     setStep(0)
   }
 
-  const programaSeleccionado = catalogos.programas.find((programa) => String(programa.id) === form.programa_id)
+  const categoriaSeleccionada = catalogos.categorias.find((categoria) => categoria.id === categoriaId) ?? null
+  const programaSeleccionado = categoriaSeleccionada?.programas.find((programa) => String(programa.id) === form.programa_id)
   const year = new Date().getFullYear()
 
   return (
@@ -964,58 +970,115 @@ export default function InscripcionPage() {
                 </div>
               )}
 
-              {/* Paso 2: programa */}
+              {/* Paso 2: categoría y luego programa */}
               {step === 1 && (
-                <fieldset className="mt-6">
-                  <legend className="text-sm text-slate-600">Seleccione el programa o taller al que desea inscribirse.</legend>
-                  {catalogos.status === 'loading' ? (
-                    <p className="mt-6 flex items-center gap-2 text-sm text-slate-500">
+                <div className="mt-6">
+                  {catalogos.status === 'loading' && (
+                    <p className="flex items-center gap-2 text-sm text-slate-500">
                       <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> Cargando programas…
                     </p>
-                  ) : (
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {catalogos.programas.map((programa, index) => {
-                        const Icon = getProgramIcon(programa.nombre)
-                        const selected = String(programa.id) === form.programa_id
-                        return (
-                          <label
-                            key={programa.id}
-                            className={`relative flex cursor-pointer items-center gap-3 rounded-xl p-4 ring-1 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-pradera-500 ${
-                              selected
-                                ? 'bg-pizarra-50 ring-2 ring-pizarra-900'
-                                : 'bg-white ring-slate-200 hover:bg-slate-50 hover:ring-slate-300'
-                            }`}
-                          >
-                            <input
-                              id={`programa-${index}`}
-                              type="radio"
-                              name="programa_id"
-                              value={programa.id}
-                              checked={selected}
-                              onChange={() => selectPrograma(programa.id)}
-                              className="sr-only"
-                            />
-                            <span
-                              className={`grid size-10 shrink-0 place-items-center rounded-lg ${
-                                selected ? 'bg-pizarra-900 text-white' : 'bg-pizarra-50 text-pizarra-700 ring-1 ring-pizarra-100'
+                  )}
+
+                  {catalogos.status === 'ready' && catalogos.categorias.length === 0 && (
+                    <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
+                      En este momento no hay programas disponibles para inscripción.
+                    </p>
+                  )}
+
+                  {catalogos.status === 'ready' && catalogos.categorias.length > 0 && !categoriaSeleccionada && (
+                    <>
+                      <p className="text-sm text-slate-600">Primero, elija la categoría que le interesa.</p>
+                      <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                        {catalogos.categorias.map((categoria, index) => {
+                          const Icon = getProgramIcon(categoria.nombre)
+                          const total = categoria.programas.length
+                          return (
+                            <li key={categoria.id}>
+                              <button
+                                id={`categoria-${index}`}
+                                type="button"
+                                onClick={() => selectCategoria(categoria.id)}
+                                className="group flex h-full w-full items-center gap-3 rounded-xl bg-white p-4 text-left ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:ring-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pradera-500"
+                              >
+                                <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-pizarra-50 text-pizarra-700 ring-1 ring-pizarra-100">
+                                  <Icon aria-hidden="true" className="size-5" />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-sm font-medium text-pizarra-950">{categoria.nombre}</span>
+                                  {categoria.descripcion && (
+                                    <span className="mt-0.5 line-clamp-2 block text-xs text-slate-500">{categoria.descripcion}</span>
+                                  )}
+                                  <span className="mt-1 block text-xs font-medium text-pradera-700">
+                                    {total} programa{total === 1 ? '' : 's'}
+                                  </span>
+                                </span>
+                                <ChevronRight
+                                  aria-hidden="true"
+                                  className="size-5 shrink-0 text-slate-300 transition-colors group-hover:text-pizarra-700"
+                                />
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </>
+                  )}
+
+                  {catalogos.status === 'ready' && categoriaSeleccionada && (
+                    <fieldset>
+                      <legend className="text-sm text-slate-600">
+                        Ahora seleccione el programa de{' '}
+                        <span className="font-medium text-pizarra-900">{categoriaSeleccionada.nombre}</span>.
+                      </legend>
+                      <Button variant="ghost" icon={ArrowLeft} onClick={() => selectCategoria(null)} className="-ml-3 mt-2">
+                        Cambiar categoría
+                      </Button>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        {categoriaSeleccionada.programas.map((programa, index) => {
+                          // Todos los programas llevan el icono de su categoría.
+                          const Icon = getProgramIcon(categoriaSeleccionada.nombre)
+                          const selected = String(programa.id) === form.programa_id
+                          return (
+                            <label
+                              key={programa.id}
+                              className={`relative flex cursor-pointer items-center gap-3 rounded-xl p-4 ring-1 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-pradera-500 ${
+                                selected
+                                  ? 'bg-pizarra-50 ring-2 ring-pizarra-900'
+                                  : 'bg-white ring-slate-200 hover:bg-slate-50 hover:ring-slate-300'
                               }`}
                             >
-                              <Icon aria-hidden="true" className="size-5" />
-                            </span>
-                            <span className="min-w-0 flex-1 text-sm font-medium text-pizarra-950">{programa.nombre}</span>
-                            {selected && <CircleCheck aria-hidden="true" className="size-5 shrink-0 text-pradera-600" />}
-                          </label>
-                        )
-                      })}
-                    </div>
+                              <input
+                                id={`programa-${index}`}
+                                type="radio"
+                                name="programa_id"
+                                value={programa.id}
+                                checked={selected}
+                                onChange={() => selectPrograma(programa.id)}
+                                className="sr-only"
+                              />
+                              <span
+                                className={`grid size-10 shrink-0 place-items-center rounded-lg ${
+                                  selected ? 'bg-pizarra-900 text-white' : 'bg-pizarra-50 text-pizarra-700 ring-1 ring-pizarra-100'
+                                }`}
+                              >
+                                <Icon aria-hidden="true" className="size-5" />
+                              </span>
+                              <span className="min-w-0 flex-1 text-sm font-medium text-pizarra-950">{programa.nombre}</span>
+                              {selected && <CircleCheck aria-hidden="true" className="size-5 shrink-0 text-pradera-600" />}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </fieldset>
                   )}
+
                   {errors.programa_id && (
                     <p role="alert" className="mt-3 flex items-start gap-1.5 text-sm text-rose-600">
                       <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                       {errors.programa_id}
                     </p>
                   )}
-                </fieldset>
+                </div>
               )}
 
               {/* Paso 3: un espacio de carga por cada documento requerido */}
@@ -1057,7 +1120,7 @@ export default function InscripcionPage() {
                       </dd>
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-xs text-slate-500">Programa</dt>
+                      <dt className="text-xs text-slate-500">Programa · {categoriaSeleccionada?.nombre}</dt>
                       <dd className="mt-0.5 truncate font-medium text-pizarra-900">{programaSeleccionado?.nombre}</dd>
                     </div>
                     {esMenor && (

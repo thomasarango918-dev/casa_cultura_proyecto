@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.models.catalogo_model import Parentesco, RequisitoDocumento
-from app.models.programa_model import Programa
+from app.models.programa_model import Categoria, Programa
 from app.models.solicitud_model import (
     ESTADO_APROBADO,
     ESTADO_PENDIENTE,
@@ -54,6 +54,18 @@ class SolicitudRepository:
 
     def get_programa(self, programa_id: int) -> Programa | None:
         return self._db.get(Programa, programa_id)
+
+    def get_programa_para_radicar(self, programa_id: int) -> tuple[Programa, bool] | None:
+        """(programa, categoría activa). FOR SHARE hasta el COMMIT: si el BackOffice deshabilita la
+        categoría o borra el programa en paralelo, espera y luego ve esta solicitud (Fase 5)."""
+        stmt = (
+            select(Programa, Categoria.activo)
+            .join(Categoria, Programa.categoria_id == Categoria.id)
+            .where(Programa.id == programa_id)
+            .with_for_update(read=True)
+        )
+        row = self._db.execute(stmt).first()
+        return (row[0], row[1]) if row else None
 
     def list_tipos_documento(self) -> list[TipoDocumento]:
         return list(self._db.scalars(select(TipoDocumento).order_by(TipoDocumento.id)))
