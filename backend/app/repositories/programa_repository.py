@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.config.roles import MAESTRO, nombres_de_rol
+from app.models.grupo_model import Grupo
 from app.models.programa_model import Categoria, Programa
 from app.models.solicitud_model import ESTADO_APROBADO, ESTADO_PENDIENTE, SolicitudInscripcion
 from app.models.user_model import Role, Usuario
@@ -27,7 +28,7 @@ class ProgramaRepository:
     def list_categorias(self, *, solo_activas: bool = False) -> list[Categoria]:
         stmt = (
             select(Categoria)
-            .options(selectinload(Categoria.programas).selectinload(Programa.maestro))
+            .options(selectinload(Categoria.programas).selectinload(Programa.maestros))
             .order_by(Categoria.nombre)
         )
         if solo_activas:
@@ -47,15 +48,15 @@ class ProgramaRepository:
 
     # ---- Programas -------------------------------------------------------------
     def list_programas(self, categoria_id: int | None = None) -> list[Programa]:
-        stmt = select(Programa).options(selectinload(Programa.maestro)).order_by(Programa.programa)
+        stmt = select(Programa).options(selectinload(Programa.maestros)).order_by(Programa.programa)
         if categoria_id is not None:
             stmt = stmt.where(Programa.categoria_id == categoria_id)
         return list(self._db.scalars(stmt))
 
     def get_programa(self, programa_id: int, *, bloquear: bool = False) -> Programa | None:
-        stmt = select(Programa).where(Programa.id == programa_id)
+        stmt = select(Programa).options(selectinload(Programa.maestros)).where(Programa.id == programa_id)
         if bloquear:
-            stmt = stmt.with_for_update()
+            stmt = stmt.with_for_update(of=Programa)
         return self._db.scalar(stmt)
 
     def programa_nombre_en_uso(self, nombre: str, excluir_id: int | None = None) -> Programa | None:
@@ -76,6 +77,12 @@ class ProgramaRepository:
             stmt = stmt.where(SolicitudInscripcion.programa_id.in_(list(programa_ids)))
         return {programa_id: total for programa_id, total in self._db.execute(stmt)}
 
+    def grupos_por_programa(self, programa_ids: Iterable[int] | None = None) -> dict[int, int]:
+        stmt = select(Grupo.programa_id, func.count()).group_by(Grupo.programa_id)
+        if programa_ids is not None:
+            stmt = stmt.where(Grupo.programa_id.in_(list(programa_ids)))
+        return {programa_id: total for programa_id, total in self._db.execute(stmt)}
+
     def total_solicitudes(self, programa_id: int) -> int:
         stmt = select(func.count()).where(SolicitudInscripcion.programa_id == programa_id)
         return self._db.scalar(stmt) or 0
@@ -90,8 +97,8 @@ class ProgramaRepository:
         )
         return list(self._db.scalars(stmt).unique())
 
-    def get_usuario(self, usuario_id: int) -> Usuario | None:
-        return self._db.get(Usuario, usuario_id)
+    def get_usuarios(self, usuario_ids: Iterable[int]) -> list[Usuario]:
+        return list(self._db.scalars(select(Usuario).where(Usuario.id.in_(list(usuario_ids)))).unique())
 
     # ---- Escritura y transacción --------------------------------------------------
     def add(self, entidad: Categoria | Programa) -> None:

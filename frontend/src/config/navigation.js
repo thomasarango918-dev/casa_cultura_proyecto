@@ -24,7 +24,7 @@ import {
   UserCog,
   UsersRound,
 } from 'lucide-react'
-import { ROL, ROLES_GESTION_PROGRAMAS, ROLES_GESTION_USUARIOS, tieneRol } from './roles'
+import { ROL, ROLES_GESTION_PROGRAMAS, ROLES_GESTION_USUARIOS, ROLES_GRUPOS, tieneRol } from './roles'
 
 /**
  * Roles que gestionan solicitudes de inscripción. Debe coincidir con
@@ -60,7 +60,7 @@ export const NAVIGATION = [
     label: 'Gestión académica',
     items: [
       { label: 'Programas', to: '/dashboard/programas', icon: BookOpen, roles: ROLES_GESTION_PROGRAMAS },
-      { label: 'Grupos', icon: UsersRound, disabled: true, roles: [...BACKOFFICE, ROL.MAESTRO] },
+      { label: 'Grupos', to: '/dashboard/grupos', icon: UsersRound, roles: ROLES_GRUPOS },
       { label: 'Asistencia', icon: CalendarCheck, disabled: true, roles: [ROL.ADMINISTRADOR, ROL.MAESTRO, ROL.ESTUDIANTE] },
     ],
   },
@@ -91,6 +91,10 @@ const ROUTE_META = {
   '/dashboard/programas': {
     title: 'Programas y categorías',
     breadcrumbs: [{ label: 'Inicio', to: '/dashboard' }, { label: 'Gestión académica' }, { label: 'Programas' }],
+  },
+  '/dashboard/grupos': {
+    title: 'Grupos',
+    breadcrumbs: [{ label: 'Inicio', to: '/dashboard' }, { label: 'Gestión académica' }, { label: 'Grupos' }],
   },
   '/dashboard/usuarios': {
     title: 'Usuarios y roles',

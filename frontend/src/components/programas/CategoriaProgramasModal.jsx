@@ -45,6 +45,7 @@ export default function CategoriaProgramasModal({ categoria, maestros, onNeedMae
   }
 
   const programas = categoria.programas
+  const nombresMaestros = (programa) => programa.maestros.map((maestro) => maestro.nombre_completo).join(', ')
 
   return (
     <>
@@ -87,7 +88,7 @@ export default function CategoriaProgramasModal({ categoria, maestros, onNeedMae
                 <tr>
                   <th scope="col" className="px-4 py-2.5 font-medium sm:pl-6">ID</th>
                   <th scope="col" className="px-4 py-2.5 font-medium">Nombre del Programa</th>
-                  <th scope="col" className="hidden px-4 py-2.5 font-medium md:table-cell">Maestro asignado</th>
+                  <th scope="col" className="hidden px-4 py-2.5 font-medium md:table-cell">Maestros asignados</th>
                   <th scope="col" className="px-4 py-2.5 text-right font-medium">Estudiantes Inscritos</th>
                   <th scope="col" className="hidden px-4 py-2.5 text-right font-medium sm:table-cell">Grupos Creados</th>
                   <th scope="col" className="px-4 py-2.5 sm:pr-6">
@@ -101,11 +102,11 @@ export default function CategoriaProgramasModal({ categoria, maestros, onNeedMae
                     <td className="whitespace-nowrap px-4 py-3 font-mono text-[13px] text-slate-500 sm:pl-6">{programa.id}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-pizarra-900">{programa.nombre}</p>
-                      <p className="text-xs text-slate-500 md:hidden">{programa.maestro_nombre ?? 'Sin maestro asignado'}</p>
+                      <p className="text-xs text-slate-500 md:hidden">{nombresMaestros(programa) || 'Sin maestros asignados'}</p>
                     </td>
                     <td className="hidden px-4 py-3 md:table-cell">
-                      {programa.maestro_nombre ? (
-                        <span className="text-slate-700">{programa.maestro_nombre}</span>
+                      {programa.maestros.length > 0 ? (
+                        <span className="text-slate-700">{nombresMaestros(programa)}</span>
                       ) : (
                         <span className="text-slate-400">Sin asignar</span>
                       )}

@@ -9,13 +9,18 @@ cualquier otro rol recibe 403:
     POST  /api/v1/admin/usuarios              Crear usuario.
     PUT   /api/v1/admin/usuarios/{id}         Actualizar datos y rol (el documento es inmutable).
     PATCH /api/v1/admin/usuarios/{id}/estado  Habilitar o deshabilitar la cuenta.
+    DELETE /api/v1/admin/usuarios/{id}        Eliminar la cuenta (solo Administrador).
 """
 
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
 
-from app.dependencies.usuario_dependencies import get_usuario_service, require_gestion_usuarios
+from app.dependencies.usuario_dependencies import (
+    get_usuario_service,
+    require_administrador,
+    require_gestion_usuarios,
+)
 from app.models.user_model import Usuario
 from app.schemas.auth_schema import MensajeError
 from app.schemas.usuario_schema import (
@@ -160,5 +165,23 @@ def update_estado(
 ) -> UsuarioOut:
     try:
         return service.cambiar_estado(actor, usuario_id, data.activo if data else None)
+    except DomainError as exc:
+        raise _http_error(exc) from exc
+
+
+@router.delete(
+    "/{usuario_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar usuario",
+    description="Solo Administrador. No se elimina la cuenta propia ni las que tienen historial (400).",
+    responses=_ERRORES,
+)
+def delete_usuario(
+    usuario_id: UsuarioId,
+    actor: Usuario = Depends(require_administrador),
+    service: UsuarioService = Depends(get_usuario_service),
+) -> None:
+    try:
+        service.eliminar(actor, usuario_id)
     except DomainError as exc:
         raise _http_error(exc) from exc

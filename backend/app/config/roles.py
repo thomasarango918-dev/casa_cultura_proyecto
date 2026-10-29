@@ -71,3 +71,8 @@ def nombres_de_rol(claves: frozenset[str]) -> list[str]:
 def roles_administrables(nombre_rol_actor: str) -> frozenset[str]:
     """Claves de rol que el usuario con ese rol puede gestionar (vacío si no gestiona usuarios)."""
     return ROLES_ADMINISTRABLES.get(clave_rol(nombre_rol_actor) or "", frozenset())
+
+
+# Fase 6: roles que entran al módulo de grupos. Se usan los alias porque el Maestro
+# puede llamarse Profesor, Maestro o Docente en TBL_Roles.
+ROLES_GRUPOS = tuple(nombres_de_rol(frozenset({ADMINISTRADOR, COORDINADOR, MAESTRO})))

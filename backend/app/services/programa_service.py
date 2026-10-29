@@ -19,6 +19,7 @@ from app.schemas.programa_schema import (
     CategoriaOut,
     CategoriaPublicaOut,
     MaestroOut,
+    MaestroResumenOut,
     ProgramaCreate,
     ProgramaGestionOut,
     ProgramaUpdate,
@@ -33,19 +34,24 @@ def _plural(total: int, singular: str, plural: str) -> str:
     return f"{total} {singular if total == 1 else plural}"
 
 
-def to_programa_out(programa: Programa, activos: dict[int, int]) -> ProgramaGestionOut:
+def to_programa_out(
+    programa: Programa, activos: dict[int, int], grupos: dict[int, int] | None = None
+) -> ProgramaGestionOut:
     return ProgramaGestionOut(
         id=programa.id,
         nombre=programa.programa,
         categoria_id=programa.categoria_id,
-        maestro_id=programa.maestro_id,
-        maestro_nombre=programa.maestro.nombre_com if programa.maestro else None,
+        maestros_ids=[maestro.id for maestro in programa.maestros],
+        maestros=[MaestroResumenOut(id=m.id, nombre_completo=m.nombre_com) for m in programa.maestros],
         estudiantes_inscritos=activos.get(programa.id, 0),
+        grupos_creados=(grupos or {}).get(programa.id, 0),
     )
 
 
-def to_categoria_out(categoria: Categoria, activos: dict[int, int]) -> CategoriaOut:
-    programas = [to_programa_out(programa, activos) for programa in categoria.programas]
+def to_categoria_out(
+    categoria: Categoria, activos: dict[int, int], grupos: dict[int, int] | None = None
+) -> CategoriaOut:
+    programas = [to_programa_out(programa, activos, grupos) for programa in categoria.programas]
     return CategoriaOut(
         id=categoria.id,
         nombre=categoria.nombre,
@@ -63,12 +69,15 @@ class ProgramaService:
     # ---- Consultas ---------------------------------------------------------------
     def listar_categorias(self) -> list[CategoriaOut]:
         activos = self._repository.estudiantes_activos()
-        return [to_categoria_out(categoria, activos) for categoria in self._repository.list_categorias()]
+        grupos = self._repository.grupos_por_programa()
+        return [to_categoria_out(categoria, activos, grupos) for categoria in self._repository.list_categorias()]
 
     def listar_programas(self, categoria_id: int | None = None) -> list[ProgramaGestionOut]:
         programas = self._repository.list_programas(categoria_id)
-        activos = self._repository.estudiantes_activos(programa.id for programa in programas)
-        return [to_programa_out(programa, activos) for programa in programas]
+        ids = [programa.id for programa in programas]
+        activos = self._repository.estudiantes_activos(ids)
+        grupos = self._repository.grupos_por_programa(ids)
+        return [to_programa_out(programa, activos, grupos) for programa in programas]
 
     def listar_maestros(self) -> list[MaestroOut]:
         return [
@@ -124,19 +133,26 @@ class ProgramaService:
         self._repository.commit()
         self._repository.refresh(categoria)
         logger.info("Categoría %s %s", categoria.id, "habilitada" if activo else "deshabilitada")
-        return to_categoria_out(categoria, activos)
+        grupos = self._repository.grupos_por_programa(programa.id for programa in categoria.programas)
+        return to_categoria_out(categoria, activos, grupos)
 
     # ---- Programas -----------------------------------------------------------------
-    def _maestro_valido(self, maestro_id: int | None, actual_id: int | None = None) -> int | None:
-        # Conservar el maestro vigente no se revalida: pudo desactivarse después de asignarlo.
-        if maestro_id is None or maestro_id == actual_id:
-            return maestro_id
-        usuario: Usuario | None = self._repository.get_usuario(maestro_id)
-        if usuario is None or clave_rol(usuario.rol.nom_role) != MAESTRO:
-            raise DatosInvalidosError("El maestro seleccionado no existe o no tiene el rol Maestro.")
-        if not usuario.state:
-            raise DatosInvalidosError("El maestro seleccionado tiene la cuenta deshabilitada.")
-        return maestro_id
+    def _maestros_validos(self, maestros_ids: list[int], actuales: list[Usuario] | None = None) -> list[Usuario]:
+        """Usuarios de la lista, en el mismo orden. Los duplicados ya los rechazó el esquema."""
+        if not maestros_ids:
+            return []
+        # Conservar un maestro vigente no se revalida: pudo desactivarse después de asignarlo.
+        vigentes = {maestro.id for maestro in actuales or []}
+        usuarios = {usuario.id: usuario for usuario in self._repository.get_usuarios(maestros_ids)}
+        for maestro_id in maestros_ids:
+            usuario = usuarios.get(maestro_id)
+            if maestro_id in vigentes:
+                continue
+            if usuario is None or clave_rol(usuario.rol.nom_role) != MAESTRO:
+                raise DatosInvalidosError("Uno de los maestros seleccionados no existe o no tiene el rol Maestro.")
+            if not usuario.state:
+                raise DatosInvalidosError(f"El maestro {usuario.nombre_com} tiene la cuenta deshabilitada.")
+        return [usuarios[maestro_id] for maestro_id in maestros_ids]
 
     def _nombre_programa_libre(self, nombre: str, excluir_id: int | None = None) -> None:
         existente = self._repository.programa_nombre_en_uso(nombre, excluir_id)
@@ -151,7 +167,7 @@ class ProgramaService:
         programa = Programa(
             programa=data.nombre,
             categoria_id=data.categoria_id,
-            maestro_id=self._maestro_valido(data.maestro_id),
+            maestros=self._maestros_validos(data.maestros_ids),
         )
         self._repository.add(programa)
         self._commit(f"Ya existe un programa llamado «{data.nombre}».")
@@ -164,11 +180,15 @@ class ProgramaService:
         if programa is None:
             raise RecursoNoEncontradoError("El programa no existe.")
         self._nombre_programa_libre(data.nombre, excluir_id=programa.id)
-        programa.maestro_id = self._maestro_valido(data.maestro_id, programa.maestro_id)
+        programa.maestros = self._maestros_validos(data.maestros_ids, programa.maestros)
         programa.programa = data.nombre
         self._commit(f"Ya existe un programa llamado «{data.nombre}».")
         self._repository.refresh(programa)
-        return to_programa_out(programa, self._repository.estudiantes_activos([programa.id]))
+        return to_programa_out(
+            programa,
+            self._repository.estudiantes_activos([programa.id]),
+            self._repository.grupos_por_programa([programa.id]),
+        )
 
     def eliminar_programa(self, programa_id: int) -> None:
         # El bloqueo hace esperar a una radicación en curso sobre este programa.
@@ -191,6 +211,13 @@ class ProgramaService:
             raise DatosInvalidosError(
                 f"No se puede eliminar «{programa.programa}»: conserva "
                 f"{_plural(historial, 'solicitud rechazada', 'solicitudes rechazadas')} en el historial."
+            )
+
+        grupos = self._repository.grupos_por_programa([programa.id]).get(programa.id, 0)
+        if grupos:
+            self._repository.rollback()
+            raise DatosInvalidosError(
+                f"No se puede eliminar «{programa.programa}»: tiene {_plural(grupos, 'grupo creado', 'grupos creados')}."
             )
 
         nombre = programa.programa

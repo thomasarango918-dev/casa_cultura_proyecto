@@ -42,6 +42,12 @@ export const ROLES_GESTION_USUARIOS = [ROL.ADMINISTRADOR, ROL.COORDINADOR]
 /** Fase 5: roles que administran categorías y programas (ROLES_GESTION_PROGRAMAS en el backend). */
 export const ROLES_GESTION_PROGRAMAS = [ROL.ADMINISTRADOR, ROL.COORDINADOR]
 
+/** Fase 6: roles que ven el módulo de grupos (ROLES_GRUPOS en el backend). */
+export const ROLES_GRUPOS = [ROL.ADMINISTRADOR, ROL.COORDINADOR, ROL.MAESTRO]
+
+/** Roles que crean, editan y asignan en grupos; el Coordinador solo consulta. */
+export const ROLES_GESTION_GRUPOS = [ROL.ADMINISTRADOR, ROL.MAESTRO]
+
 /** 'Profesor' -> 'MAESTRO'. Devuelve null si el rol no es uno de los cuatro conocidos. */
 export function claveRol(nombre) {
   return ALIAS[String(nombre ?? '').trim().toLowerCase()] ?? null

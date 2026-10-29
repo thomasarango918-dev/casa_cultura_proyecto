@@ -10,6 +10,7 @@ servicio decide cuándo confirmar o revertir.
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.models.solicitud_model import SolicitudInscripcion
 from app.models.user_model import Role, TipoDocumento, Usuario
 
 
@@ -83,8 +84,15 @@ class UsuarioAdminRepository:
         stmt = select(Usuario.id).where(Usuario.num_documento == num_documento).limit(1)
         return self._db.scalar(stmt) is not None
 
+    def solicitudes_evaluadas(self, usuario_id: int) -> int:
+        stmt = select(func.count()).where(SolicitudInscripcion.evaluado_por == usuario_id)
+        return self._db.scalar(stmt) or 0
+
     def add(self, usuario: Usuario) -> None:
         self._db.add(usuario)
+
+    def delete(self, usuario: Usuario) -> None:
+        self._db.delete(usuario)
 
     # ------------------------------------------------------------------ #
     # Transacción

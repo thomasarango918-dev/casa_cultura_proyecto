@@ -2,7 +2,7 @@
 Esquemas Pydantic v2 del módulo de programas y categorías (Fase 5).
 
 BackOffice: CategoriaCreate, CategoriaEstadoRequest, ProgramaCreate, ProgramaUpdate,
-            CategoriaOut, ProgramaGestionOut, MaestroOut.
+            CategoriaOut, ProgramaGestionOut, MaestroOut, MaestroResumenOut.
 Público:    CategoriaPublicaOut (programas agrupados para el paso 2 de la inscripción).
 """
 
@@ -45,7 +45,21 @@ def _validar_descripcion(value: str | None) -> str | None:
 
 Nombre = Annotated[str, BeforeValidator(_limpiar_texto), AfterValidator(_validar_nombre)]
 Descripcion = Annotated[str | None, BeforeValidator(_vacio_a_none), AfterValidator(_validar_descripcion)]
-MaestroId = Annotated[int | None, Field(default=None, gt=0)]
+
+
+# Debe coincidir con MAESTROS_MAX en frontend/src/components/programas/ProgramaFormModal.jsx.
+MAESTROS_MAX = 3
+
+
+def _validar_maestros(value: list[int]) -> list[int]:
+    if len(value) > MAESTROS_MAX:
+        raise ValueError(f"Un programa admite como máximo {MAESTROS_MAX} maestros.")
+    if len(set(value)) != len(value):
+        raise ValueError("Un mismo maestro no se puede asignar dos veces al programa.")
+    return value
+
+
+MaestrosIds = Annotated[list[Annotated[int, Field(gt=0)]], AfterValidator(_validar_maestros)]
 
 
 # --------------------------------------------------------------------------- #
@@ -63,13 +77,13 @@ class CategoriaEstadoRequest(BaseModel):
 class ProgramaCreate(BaseModel):
     categoria_id: int = Field(..., gt=0)
     nombre: Nombre
-    maestro_id: MaestroId = None
+    maestros_ids: MaestrosIds = Field(default_factory=list)
 
 
 class ProgramaUpdate(BaseModel):
     nombre: Nombre
-    # null = quitar el maestro asignado.
-    maestro_id: MaestroId = None
+    # Reemplaza la lista completa; [] = sin maestros.
+    maestros_ids: MaestrosIds = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -82,15 +96,19 @@ class MaestroOut(BaseModel):
     activo: bool
 
 
+class MaestroResumenOut(BaseModel):
+    id: int
+    nombre_completo: str
+
+
 class ProgramaGestionOut(BaseModel):
     id: int
     nombre: str
     categoria_id: int | None
-    maestro_id: int | None
-    maestro_nombre: str | None
+    maestros_ids: list[int]
+    maestros: list[MaestroResumenOut]
     # Solicitudes PENDIENTE + APROBADO: las que bloquean borrar el programa o cerrar la categoría.
     estudiantes_inscritos: int
-    # Pendiente del módulo de grupos.
     grupos_creados: int = 0
 
 

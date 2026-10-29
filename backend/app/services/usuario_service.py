@@ -11,6 +11,8 @@ Reglas adicionales:
     - Nadie puede cambiar su propio rol ni deshabilitar su propia cuenta,
       para no quedarse sin acceso por error.
     - Correo y número de documento son únicos (409 si ya están registrados).
+    - Solo el Administrador elimina cuentas, nunca la propia, y no las que dejaron historial
+      (solicitudes evaluadas, grupos o asistencias): esas se deshabilitan.
 """
 
 import logging
@@ -203,3 +205,29 @@ class UsuarioService:
             "Usuario %s %s por el usuario %s.", usuario.id, "habilitado" if nuevo_estado else "deshabilitado", actor.id
         )
         return to_usuario_out(usuario)
+
+    def eliminar(self, actor: Usuario, usuario_id: int) -> None:
+        if clave_rol(actor.rol.nom_role) != ADMINISTRADOR:
+            raise PermisoDenegadoError("Solo el Administrador puede eliminar usuarios.")
+        usuario = self._usuario_gestionable(actor, usuario_id)
+        if usuario.id == actor.id:
+            raise DatosInvalidosError("No puede eliminar su propia cuenta.")
+        # evaluado_por quedaría en NULL (SET NULL) y se perdería quién decidió cada solicitud.
+        evaluadas = self._repository.solicitudes_evaluadas(usuario.id)
+        if evaluadas:
+            raise DatosInvalidosError(
+                f"No se puede eliminar a {usuario.nombre_com}: evaluó {evaluadas} "
+                f"solicitud{'' if evaluadas == 1 else 'es'}. Deshabilite la cuenta en su lugar."
+            )
+
+        nombre = usuario.nombre_com
+        self._repository.delete(usuario)
+        try:
+            self._repository.commit()
+        except IntegrityError as exc:
+            # FK RESTRICT de casacultura.sql (grupos, inscripciones, asistencias).
+            self._repository.rollback()
+            raise DatosInvalidosError(
+                f"No se puede eliminar a {nombre}: tiene registros asociados. Deshabilite la cuenta en su lugar."
+            ) from exc
+        logger.info("Usuario %s eliminado por el usuario %s.", usuario_id, actor.id)

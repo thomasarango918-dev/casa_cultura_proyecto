@@ -7,23 +7,25 @@
  * Secciones:
  *   1. Encabezado con "Crear usuario".
  *   2. Buscador por documento de identidad (espera 350 ms y cancela la búsqueda anterior).
- *   3. Tabla: las cuentas deshabilitadas se ven atenuadas; el lápiz abre el modal de edición.
+ *   3. Tabla: las cuentas deshabilitadas se ven atenuadas; el lápiz abre el modal de edición
+ *      y la papelera (solo Administrador) elimina la cuenta tras confirmar.
  *
  * Alcance (lo aplica la API): el Administrador ve todos los usuarios; el Coordinador,
  * solo Maestros y Estudiantes.
  */
 import { useCallback, useEffect, useState } from 'react'
-import { LoaderCircle, Pencil, RefreshCw, Search, SearchX, TriangleAlert, UserPlus, UsersRound, X } from 'lucide-react'
+import { LoaderCircle, Pencil, RefreshCw, Search, SearchX, Trash2, TriangleAlert, UserPlus, UsersRound, X } from 'lucide-react'
 import AccessDenied from '../components/ui/AccessDenied'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 import UsuarioFormModal from '../components/usuarios/UsuarioFormModal'
 import { RolBadge, UsuarioEstadoBadge } from '../components/usuarios/UsuarioBadges'
 import { ROL, claveRol } from '../config/roles'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { getApiErrorMessage } from '../services/apiClient'
-import { getCatalogosUsuario, listUsuarios } from '../services/usuariosService'
+import { eliminarUsuario, getCatalogosUsuario, listUsuarios } from '../services/usuariosService'
 import { normalizarDocumento } from '../utils/validators'
 
 const PAGE_SIZE = 50
@@ -56,6 +58,8 @@ export default function UsuariosPage() {
   const [catalogos, setCatalogos] = useState(null)
   const [cargandoCatalogos, setCargandoCatalogos] = useState(false)
   const [modal, setModal] = useState(null) // { usuario: object|null } | null
+  const [porEliminar, setPorEliminar] = useState(null)
+  const [eliminando, setEliminando] = useState(false)
 
   // Consulta el listado cada vez que cambia la búsqueda; cancela la consulta anterior.
   useEffect(() => {
@@ -126,6 +130,23 @@ export default function UsuariosPage() {
   )
 
   const closeModal = useCallback(() => setModal(null), [])
+
+  async function confirmarEliminar() {
+    setEliminando(true)
+    try {
+      await eliminarUsuario(porEliminar.id)
+      toast.success('Usuario eliminado', `Se eliminó la cuenta de ${porEliminar.nombre_completo}.`)
+      setData((current) => ({
+        total: current.total - 1,
+        items: current.items.filter((item) => item.id !== porEliminar.id),
+      }))
+    } catch (error) {
+      toast.error('No fue posible eliminar el usuario', getApiErrorMessage(error))
+    } finally {
+      setEliminando(false)
+      setPorEliminar(null)
+    }
+  }
 
   if (status === 'forbidden') return <AccessDenied />
 
@@ -276,7 +297,7 @@ export default function UsuariosPage() {
                       <td className="hidden px-4 py-3.5 md:table-cell">
                         <UsuarioEstadoBadge activo={usuario.activo} />
                       </td>
-                      <td className="px-4 py-3.5 text-right sm:pr-6">
+                      <td className="whitespace-nowrap px-4 py-3.5 text-right sm:pr-6">
                         <button
                           type="button"
                           onClick={() => openModal(usuario)}
@@ -291,6 +312,17 @@ export default function UsuariosPage() {
                             <Pencil aria-hidden="true" className="size-[18px]" />
                           )}
                         </button>
+                        {esAdministrador && usuario.id !== user?.id && (
+                          <button
+                            type="button"
+                            onClick={() => setPorEliminar(usuario)}
+                            className="inline-grid size-9 place-items-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50 hover:text-rose-700"
+                            aria-label={`Eliminar a ${usuario.nombre_completo}`}
+                            title="Eliminar"
+                          >
+                            <Trash2 aria-hidden="true" className="size-[18px]" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -320,6 +352,26 @@ export default function UsuariosPage() {
           currentUserId={user?.id}
           onClose={closeModal}
           onSaved={handleSaved}
+        />
+      )}
+
+      {porEliminar && (
+        <ConfirmDialog
+          title="¿Estás seguro de eliminar el usuario?"
+          description={
+            <>
+              Se eliminará la cuenta de{' '}
+              <strong className="font-semibold text-pizarra-900">{porEliminar.nombre_completo}</strong> (
+              {porEliminar.tipo_documento} {porEliminar.num_documento}). Esta acción no se puede deshacer. Si solo quiere
+              impedir el acceso, deshabilite la cuenta desde el lápiz.
+            </>
+          }
+          confirmLabel="Sí, eliminar"
+          tone="danger"
+          icon={Trash2}
+          loading={eliminando}
+          onConfirm={confirmarEliminar}
+          onCancel={() => setPorEliminar(null)}
         />
       )}
     </div>

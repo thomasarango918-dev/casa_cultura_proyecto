@@ -28,13 +28,13 @@ export async function listMaestros() {
   return data
 }
 
-/** @param {{categoria_id: number, nombre: string, maestro_id: number|null}} programa */
+/** @param {{categoria_id: number, nombre: string, maestros_ids: number[]}} programa */
 export async function crearPrograma(programa) {
   const { data } = await apiClient.post('/admin/programas', programa)
   return data
 }
 
-/** @param {{nombre: string, maestro_id: number|null}} programa */
+/** @param {{nombre: string, maestros_ids: number[]}} programa Reemplaza la lista completa de maestros. */
 export async function actualizarPrograma(id, programa) {
   const { data } = await apiClient.put(`/admin/programas/${id}`, programa)
   return data

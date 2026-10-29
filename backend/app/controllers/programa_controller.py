@@ -7,7 +7,7 @@ Capa Controlador (MVC): categorías y programas (Fase 5, JWT + Administrador/Coo
     GET    /api/v1/admin/programas                Programas con métricas (?categoria_id=).
     GET    /api/v1/admin/programas/maestros       Usuarios con rol Maestro, para asignar.
     POST   /api/v1/admin/programas                Crear programa en una categoría.
-    PUT    /api/v1/admin/programas/{id}           Editar nombre y maestro.
+    PUT    /api/v1/admin/programas/{id}           Editar nombre y maestros (maestros_ids).
     DELETE /api/v1/admin/programas/{id}           Eliminar (400 con estudiantes activos o historial).
 """
 
@@ -128,7 +128,7 @@ def create_programa(
 
 
 @programas_router.put(
-    "/{programa_id}", response_model=ProgramaGestionOut, summary="Editar nombre y maestro", responses=_ERRORES
+    "/{programa_id}", response_model=ProgramaGestionOut, summary="Editar nombre y maestros", responses=_ERRORES
 )
 def update_programa(
     programa_id: ProgramaId,

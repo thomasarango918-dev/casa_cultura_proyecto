@@ -70,7 +70,7 @@ const MODULES = [
   { name: 'Acceso y autenticación', available: true },
   { name: 'Radicación pública de inscripciones', available: true },
   { name: 'Programas y categorías', available: true },
-  { name: 'Grupos', available: false },
+  { name: 'Grupos', available: true },
   { name: 'Control de asistencia', available: false },
 ]
 

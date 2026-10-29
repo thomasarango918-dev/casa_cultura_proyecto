@@ -45,3 +45,8 @@ export async function cambiarEstadoUsuario(id, activo) {
   const { data } = await apiClient.patch(`/admin/usuarios/${id}/estado`, { activo })
   return data
 }
+
+/** Solo Administrador. La API responde 400 si es la cuenta propia o si tiene historial. */
+export async function eliminarUsuario(id) {
+  await apiClient.delete(`/admin/usuarios/${id}`)
+}
