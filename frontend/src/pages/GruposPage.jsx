@@ -4,9 +4,12 @@
  * La API ya filtra por rol: el Maestro solo recibe los grupos de sus programas.
  * Los botones de acción se ocultan al Coordinador (solo consulta); el 403 de la API
  * sigue siendo la verificación real.
+ * "Estadísticas" (Fase 7): ocupación de los grupos de un maestro con exportación a CSV. Administrador y
+ * Coordinador eligen cualquier maestro; el Maestro solo ve sus propios grupos.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import {
+  BarChart3,
   CalendarDays,
   LoaderCircle,
   Maximize2,
@@ -23,11 +26,14 @@ import GrupoFormModal from '../components/grupos/GrupoFormModal'
 import HorarioSemanalModal from '../components/grupos/HorarioSemanalModal'
 import AccessDenied from '../components/ui/AccessDenied'
 import Button from '../components/ui/Button'
-import { ROL, ROLES_GESTION_GRUPOS, claveRol, tieneRol } from '../config/roles'
+import { ROL, ROLES_ESTADISTICAS_GRUPOS, ROLES_GESTION_GRUPOS, claveRol, tieneRol } from '../config/roles'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { getApiErrorMessage } from '../services/apiClient'
 import { listGrupos } from '../services/gruposService'
+
+// Fase 7: Recharts solo se descarga cuando se abre el modal de estadísticas.
+const OcupacionGruposModal = lazy(() => import('../components/estadisticas/OcupacionGruposModal'))
 import { resumenHorario } from '../utils/horarios'
 import { getProgramIcon } from '../utils/programIcons'
 
@@ -107,12 +113,13 @@ export default function GruposPage() {
   const { user } = useAuth()
   const puedeGestionar = tieneRol(user?.rol, ROLES_GESTION_GRUPOS)
   const esMaestro = claveRol(user?.rol) === ROL.MAESTRO
+  const puedeVerEstadisticas = tieneRol(user?.rol, ROLES_ESTADISTICAS_GRUPOS)
 
   const [grupos, setGrupos] = useState([])
   const [status, setStatus] = useState('loading') // loading | ready | error | forbidden
   const [errorMessage, setErrorMessage] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
-  // { tipo: 'crear' | 'horario' } | { tipo: 'editar' | 'asignar' | 'expandir', id }
+  // { tipo: 'crear' | 'horario' | 'estadisticas' } | { tipo: 'editar' | 'asignar' | 'expandir', id }
   const [modal, setModal] = useState(null)
 
   useEffect(() => {
@@ -175,6 +182,11 @@ export default function GruposPage() {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
+          {puedeVerEstadisticas && (
+            <Button variant="secondary" icon={BarChart3} onClick={() => setModal({ tipo: 'estadisticas' })}>
+              Estadísticas
+            </Button>
+          )}
           <Button
             variant="secondary"
             icon={CalendarDays}
@@ -252,6 +264,12 @@ export default function GruposPage() {
             ))}
           </div>
         </>
+      )}
+
+      {puedeVerEstadisticas && modal?.tipo === 'estadisticas' && (
+        <Suspense fallback={null}>
+          <OcupacionGruposModal isOpen onClose={closeModal} />
+        </Suspense>
       )}
 
       {modal?.tipo === 'horario' && (

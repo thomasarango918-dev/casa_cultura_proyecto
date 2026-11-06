@@ -79,3 +79,8 @@ ROLES_GRUPOS = tuple(nombres_de_rol(frozenset({ADMINISTRADOR, COORDINADOR, MAEST
 
 # Fase 6 (asistencias): roles que toman asistencia. El Maestro solo en los grupos de sus programas.
 ROLES_ASISTENCIA = tuple(nombres_de_rol(frozenset({ADMINISTRADOR, MAESTRO})))
+
+# Fase 7: roles que consultan las estadísticas y exportan a CSV.
+ROLES_ESTADISTICAS = ("Administrador", "Coordinador")
+# La ocupación de grupos también la ve el Maestro, pero solo la de sus propios grupos.
+ROLES_ESTADISTICAS_GRUPOS = ROLES_GRUPOS

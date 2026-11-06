@@ -51,6 +51,12 @@ export const ROLES_GESTION_GRUPOS = [ROL.ADMINISTRADOR, ROL.MAESTRO]
 /** Fase 6: roles que toman asistencia (ROLES_ASISTENCIA en el backend). El Maestro, solo en sus grupos. */
 export const ROLES_ASISTENCIA = [ROL.ADMINISTRADOR, ROL.MAESTRO]
 
+/** Fase 7: roles que ven los botones "Estadísticas" y exportan a CSV (ROLES_ESTADISTICAS en el backend). */
+export const ROLES_ESTADISTICAS = [ROL.ADMINISTRADOR, ROL.COORDINADOR]
+
+/** Estadísticas de ocupación de grupos: también el Maestro, pero solo las de sus grupos (ROLES_ESTADISTICAS_GRUPOS). */
+export const ROLES_ESTADISTICAS_GRUPOS = [ROL.ADMINISTRADOR, ROL.COORDINADOR, ROL.MAESTRO]
+
 /** 'Profesor' -> 'MAESTRO'. Devuelve null si el rol no es uno de los cuatro conocidos. */
 export function claveRol(nombre) {
   return ALIAS[String(nombre ?? '').trim().toLowerCase()] ?? null

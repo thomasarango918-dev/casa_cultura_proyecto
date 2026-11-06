@@ -6,12 +6,13 @@
  * se pudo consultar, conserva la raya gris "—".
  *
  * Secciones:
- *   1. Encabezado con fecha, saludo y rol del usuario.
+ *   1. Encabezado con fecha, saludo, rol del usuario y botón "Estadísticas"
+ *      (Fase 7, Administrador y Coordinador: dona de solicitudes por estado).
  *   2. Indicadores (KPI) del periodo.
  *   3. Solicitudes recientes.
  *   4. Próximas sesiones de clase y estado de los módulos del sistema.
  */
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
@@ -20,15 +21,20 @@ import {
   CircleX,
   ClipboardCheck,
   Inbox,
+  PieChart,
   ShieldCheck,
   Stamp,
 } from 'lucide-react'
 import EstadoBadge from '../components/solicitudes/EstadoBadge'
+import Button from '../components/ui/Button'
 import { BACKOFFICE_ROLES } from '../config/navigation'
-import { etiquetaRol } from '../config/roles'
+import { ROLES_ESTADISTICAS, etiquetaRol, tieneRol } from '../config/roles'
 import { useAuth } from '../context/AuthContext'
 import { getDashboardKpis, listSolicitudes } from '../services/solicitudesService'
 import { formatLongDate, formatShortDate, getFirstName, getGreeting } from '../utils/formatters'
+
+// Fase 7: Recharts solo se descarga cuando se abre el modal de estadísticas.
+const EstadisticasSolicitudesModal = lazy(() => import('../components/estadisticas/EstadisticasSolicitudesModal'))
 
 /** Indicadores del panel. `kpi` es la clave correspondiente en la respuesta de /admin/dashboard/kpis. */
 const INDICATORS = [
@@ -133,6 +139,8 @@ export default function DashboardBasePage() {
 
   const [kpis, setKpis] = useState(null)
   const [recent, setRecent] = useState([])
+  const puedeVerEstadisticas = tieneRol(user?.rol, ROLES_ESTADISTICAS)
+  const [estadisticasAbiertas, setEstadisticasAbiertas] = useState(false)
 
   // Indicadores y solicitudes recientes. Si la consulta falla, se conservan las rayas y el estado vacío.
   useEffect(() => {
@@ -163,11 +171,25 @@ export default function DashboardBasePage() {
             radiquen solicitudes y se conformen los grupos.
           </p>
         </div>
-        <span className="inline-flex items-center gap-2 self-start rounded-full bg-white px-3 py-1.5 text-sm font-medium text-pizarra-800 ring-1 ring-slate-200 sm:self-auto">
-          <ShieldCheck aria-hidden="true" className="size-4 text-pradera-600" />
-          {etiquetaRol(user?.rol)}
-        </span>
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm font-medium text-pizarra-800 ring-1 ring-slate-200">
+            <ShieldCheck aria-hidden="true" className="size-4 text-pradera-600" />
+            {etiquetaRol(user?.rol)}
+          </span>
+          {/* Fase 7: solo Administrador y Coordinador. */}
+          {puedeVerEstadisticas && (
+            <Button variant="secondary" icon={PieChart} onClick={() => setEstadisticasAbiertas(true)}>
+              Estadísticas
+            </Button>
+          )}
+        </div>
       </section>
+
+      {puedeVerEstadisticas && estadisticasAbiertas && (
+        <Suspense fallback={null}>
+          <EstadisticasSolicitudesModal isOpen onClose={() => setEstadisticasAbiertas(false)} />
+        </Suspense>
+      )}
 
       {/* 2. Indicadores. gap-px sobre fondo gris dibuja las líneas divisorias entre tarjetas. */}
       <section aria-labelledby="titulo-indicadores">

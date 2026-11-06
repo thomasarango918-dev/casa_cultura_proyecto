@@ -3,19 +3,25 @@
  *
  * Grid de categorías: el lápiz abre el modal de estado y "Expandir" la tabla de programas.
  * Los modales devuelven lo que respondió la API y la página lo refleja sin recargar todo.
+ * "Estadísticas" (Fase 7, Administrador y Coordinador): demanda por categoría con exportación a CSV.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { FolderPlus, Layers, LoaderCircle, Maximize2, Pencil, RefreshCw, TriangleAlert } from 'lucide-react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { BarChart3, FolderPlus, Layers, LoaderCircle, Maximize2, Pencil, RefreshCw, TriangleAlert } from 'lucide-react'
 import CategoriaEstadoModal from '../components/programas/CategoriaEstadoModal'
 import CategoriaFormModal from '../components/programas/CategoriaFormModal'
 import CategoriaProgramasModal from '../components/programas/CategoriaProgramasModal'
 import { CategoriaEstadoBadge } from '../components/programas/ProgramaBadges'
 import AccessDenied from '../components/ui/AccessDenied'
 import Button from '../components/ui/Button'
+import { ROLES_ESTADISTICAS, tieneRol } from '../config/roles'
+import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { getApiErrorMessage } from '../services/apiClient'
 import { listCategorias, listMaestros } from '../services/programasService'
 import { getProgramIcon } from '../utils/programIcons'
+
+// Fase 7: Recharts solo se descarga cuando se abre el modal de estadísticas.
+const EstadisticasCategoriasModal = lazy(() => import('../components/estadisticas/EstadisticasCategoriasModal'))
 
 // Programas visibles en la tarjeta; el resto se ve con "Expandir".
 const VISTA_PREVIA = 5
@@ -110,12 +116,14 @@ function CategoriaCard({ categoria, onEditar, onExpandir }) {
 
 export default function ProgramasPage() {
   const toast = useToast()
+  const { user } = useAuth()
+  const puedeVerEstadisticas = tieneRol(user?.rol, ROLES_ESTADISTICAS)
   const [categorias, setCategorias] = useState([])
   const [status, setStatus] = useState('loading') // loading | ready | error | forbidden
   const [errorMessage, setErrorMessage] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
 
-  // { tipo: 'crear' } | { tipo: 'estado' | 'expandir', id }
+  // { tipo: 'crear' | 'estadisticas' } | { tipo: 'estado' | 'expandir', id }
   const [modal, setModal] = useState(null)
   const [maestros, setMaestros] = useState({ status: 'idle', items: [] })
   const maestrosStatus = useRef('idle')
@@ -194,7 +202,12 @@ export default function ProgramasPage() {
             de inscripción.
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {puedeVerEstadisticas && (
+            <Button variant="secondary" icon={BarChart3} onClick={() => setModal({ tipo: 'estadisticas' })}>
+              Estadísticas
+            </Button>
+          )}
           <Button
             variant="secondary"
             icon={RefreshCw}
@@ -254,6 +267,12 @@ export default function ProgramasPage() {
             ))}
           </div>
         </>
+      )}
+
+      {puedeVerEstadisticas && modal?.tipo === 'estadisticas' && (
+        <Suspense fallback={null}>
+          <EstadisticasCategoriasModal isOpen onClose={closeModal} />
+        </Suspense>
       )}
 
       {modal?.tipo === 'crear' && <CategoriaFormModal onClose={closeModal} onCreated={agregarCategoria} />}

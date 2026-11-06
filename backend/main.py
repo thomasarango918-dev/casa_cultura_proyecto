@@ -28,6 +28,7 @@ from app.controllers import (
     configuracion_sistema_controller,
     dashboard_controller,
     documento_controller,
+    estadistica_controller,
     grupo_controller,
     programa_controller,
     public_controller,
@@ -115,6 +116,7 @@ api_v1.include_router(programa_controller.categorias_router)  # Categorías
 api_v1.include_router(programa_controller.programas_router)  # Programas
 api_v1.include_router(grupo_controller.router)  # Fase 6: grupos.
 api_v1.include_router(asistencia_controller.router)  # Fase 6: asistencias.
+api_v1.include_router(estadistica_controller.router)  # Fase 7: estadísticas (solo lectura).
 app.include_router(api_v1)
 
 
