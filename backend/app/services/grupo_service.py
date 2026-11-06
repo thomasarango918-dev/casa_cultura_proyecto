@@ -6,27 +6,37 @@ Permisos (el servicio recibe al usuario autenticado):
     Coordinador    solo consulta; cualquier escritura -> 403.
     Maestro        ve y gestiona solo los grupos de sus programas (tbl_programa_maestro);
                    un grupo de otro programa -> 403.
+
+Fase 6 (asistencias): el grupo guarda su horario semanal y las sesiones de clase se
+calculan desde su creación hasta hoy, sin los festivos de Colombia.
 """
 
 import logging
+from collections.abc import Iterable
+from datetime import date
 
 from sqlalchemy.exc import IntegrityError
 
 from app.config.roles import ADMINISTRADOR, MAESTRO, clave_rol
-from app.models.grupo_model import Grupo, GrupoEstudiante
+from app.models.grupo_model import Grupo, GrupoEstudiante, GrupoHorario
 from app.models.user_model import Usuario
 from app.repositories.grupo_repository import GrupoRepository
 from app.schemas.grupo_schema import (
     AsignacionOut,
     EstudianteDisponibleOut,
     EstudianteGrupoOut,
+    FestivoOut,
     GrupoCreate,
     GrupoOut,
     GrupoUpdate,
+    HorarioIn,
+    HorarioOut,
     ProgramaGrupoOut,
+    SesionesClaseOut,
 )
 from app.schemas.programa_schema import MaestroResumenOut
 from app.utils.exceptions import DatosInvalidosError, PermisoDenegadoError, RecursoNoEncontradoError
+from app.utils.festivos_colombia import fechas_de_clase, hoy_colombia
 
 logger = logging.getLogger("casacultura.grupos")
 
@@ -41,6 +51,30 @@ def _to_grupo_out(grupo: Grupo, activos: dict[int, int]) -> GrupoOut:
         programa_nombre=grupo.programa.programa,
         maestros=[MaestroResumenOut(id=m.id, nombre_completo=m.nombre_com) for m in grupo.programa.maestros],
         estudiantes_activos=activos.get(grupo.id, 0),
+        fecha_creacion=grupo.fecha_creacion,
+        horarios=[
+            HorarioOut(dia_semana=h.dia_semana, hora_inicio=h.hora_inicio, hora_fin=h.hora_fin) for h in grupo.horarios
+        ],
+    )
+
+
+def _bloques(horarios: Iterable[HorarioIn]) -> list[GrupoHorario]:
+    return [GrupoHorario(dia_semana=h.dia_semana, hora_inicio=h.hora_inicio, hora_fin=h.hora_fin) for h in horarios]
+
+
+def sesiones_de_clase(grupo: Grupo) -> SesionesClaseOut:
+    """Fechas de clase del grupo desde su creación hasta hoy (Colombia), omitiendo los festivos.
+
+    También la usa el módulo de asistencias para armar las columnas de la matriz.
+    """
+    desde, hasta = grupo.fecha_creacion.date(), hoy_colombia()
+    sesiones, festivos = fechas_de_clase(desde, hasta, (h.dia_semana for h in grupo.horarios))
+    return SesionesClaseOut(
+        grupo_id=grupo.id,
+        desde=desde,
+        hasta=hasta,
+        sesiones=sesiones,
+        festivos_omitidos=[FestivoOut(fecha=fecha, nombre=nombre) for fecha, nombre in festivos],
     )
 
 
@@ -126,6 +160,9 @@ class GrupoService:
             for vinculo in self._repository.estudiantes_del_grupo(grupo_id)
         ]
 
+    def sesiones_clase(self, grupo_id: int) -> SesionesClaseOut:
+        return sesiones_de_clase(self._grupo(grupo_id, gestionar=False))
+
     # ---- Grupos -------------------------------------------------------------------------
     def crear(self, data: GrupoCreate) -> GrupoOut:
         programa = self._repository.get_programa(data.programa_id)
@@ -134,7 +171,7 @@ class GrupoService:
         self._exigir_gestion(programa.id)
         self._nombre_libre(programa.id, data.nombre)
 
-        grupo = Grupo(nombre=data.nombre, programa_id=programa.id)
+        grupo = Grupo(nombre=data.nombre, programa_id=programa.id, horarios=_bloques(data.horarios))
         self._repository.add(grupo)
         self._commit(f"Ya existe un grupo llamado «{data.nombre}» en {programa.programa}.")
         self._repository.refresh(grupo)
@@ -145,6 +182,9 @@ class GrupoService:
         grupo = self._grupo(grupo_id, gestionar=True)
         self._nombre_libre(grupo.programa_id, data.nombre, excluir_id=grupo.id)
         grupo.nombre = data.nombre
+        if data.horarios is not None:
+            # delete-orphan borra los bloques anteriores; el horario se reemplaza completo.
+            grupo.horarios = _bloques(data.horarios)
         self._commit(f"Ya existe un grupo llamado «{data.nombre}» en {grupo.programa.programa}.")
         self._repository.refresh(grupo)
         return _to_grupo_out(grupo, self._repository.estudiantes_activos([grupo.id]))

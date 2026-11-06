@@ -48,6 +48,9 @@ export const ROLES_GRUPOS = [ROL.ADMINISTRADOR, ROL.COORDINADOR, ROL.MAESTRO]
 /** Roles que crean, editan y asignan en grupos; el Coordinador solo consulta. */
 export const ROLES_GESTION_GRUPOS = [ROL.ADMINISTRADOR, ROL.MAESTRO]
 
+/** Fase 6: roles que toman asistencia (ROLES_ASISTENCIA en el backend). El Maestro, solo en sus grupos. */
+export const ROLES_ASISTENCIA = [ROL.ADMINISTRADOR, ROL.MAESTRO]
+
 /** 'Profesor' -> 'MAESTRO'. Devuelve null si el rol no es uno de los cuatro conocidos. */
 export function claveRol(nombre) {
   return ALIAS[String(nombre ?? '').trim().toLowerCase()] ?? null

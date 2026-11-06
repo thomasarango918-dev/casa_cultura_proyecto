@@ -24,7 +24,14 @@ import {
   UserCog,
   UsersRound,
 } from 'lucide-react'
-import { ROL, ROLES_GESTION_PROGRAMAS, ROLES_GESTION_USUARIOS, ROLES_GRUPOS, tieneRol } from './roles'
+import {
+  ROL,
+  ROLES_ASISTENCIA,
+  ROLES_GESTION_PROGRAMAS,
+  ROLES_GESTION_USUARIOS,
+  ROLES_GRUPOS,
+  tieneRol,
+} from './roles'
 
 /**
  * Roles que gestionan solicitudes de inscripción. Debe coincidir con
@@ -61,7 +68,9 @@ export const NAVIGATION = [
     items: [
       { label: 'Programas', to: '/dashboard/programas', icon: BookOpen, roles: ROLES_GESTION_PROGRAMAS },
       { label: 'Grupos', to: '/dashboard/grupos', icon: UsersRound, roles: ROLES_GRUPOS },
-      { label: 'Asistencia', icon: CalendarCheck, disabled: true, roles: [ROL.ADMINISTRADOR, ROL.MAESTRO, ROL.ESTUDIANTE] },
+      { label: 'Asistencia', to: '/dashboard/asistencias', icon: CalendarCheck, roles: ROLES_ASISTENCIA },
+      // La consulta de asistencia del Estudiante es un módulo futuro.
+      { label: 'Mi asistencia', icon: CalendarCheck, disabled: true, roles: [ROL.ESTUDIANTE] },
     ],
   },
   {
@@ -95,6 +104,10 @@ const ROUTE_META = {
   '/dashboard/grupos': {
     title: 'Grupos',
     breadcrumbs: [{ label: 'Inicio', to: '/dashboard' }, { label: 'Gestión académica' }, { label: 'Grupos' }],
+  },
+  '/dashboard/asistencias': {
+    title: 'Asistencia',
+    breadcrumbs: [{ label: 'Inicio', to: '/dashboard' }, { label: 'Gestión académica' }, { label: 'Asistencia' }],
   },
   '/dashboard/usuarios': {
     title: 'Usuarios y roles',

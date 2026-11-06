@@ -15,14 +15,21 @@ export async function listProgramasParaGrupos() {
   return data
 }
 
-/** @param {{programa_id: number, nombre: string}} grupo */
+/**
+ * Horario: [{dia_semana: 1-7, hora_inicio: 'HH:MM', hora_fin: 'HH:MM'}], entre 08:00 y 22:00.
+ * @param {{programa_id: number, nombre: string, horarios: object[]}} grupo
+ */
 export async function crearGrupo(grupo) {
   const { data } = await apiClient.post('/admin/grupos', grupo)
   return data
 }
 
-export async function renombrarGrupo(id, nombre) {
-  const { data } = await apiClient.put(`/admin/grupos/${id}`, { nombre })
+/**
+ * Renombra el grupo y reemplaza su horario completo.
+ * @param {{nombre: string, horarios: object[]}} grupo
+ */
+export async function actualizarGrupo(id, grupo) {
+  const { data } = await apiClient.put(`/admin/grupos/${id}`, grupo)
   return data
 }
 
@@ -51,4 +58,10 @@ export async function asignarEstudiantes(id, solicitudesIds) {
 /** Soft delete: la API marca la salida con fecha, no borra el registro. */
 export async function desasignarEstudiante(id, solicitudId) {
   await apiClient.delete(`/admin/grupos/${id}/estudiantes/${solicitudId}`)
+}
+
+/** Fechas de clase desde la creación del grupo hasta hoy, sin festivos de Colombia. */
+export async function getSesionesClase(id) {
+  const { data } = await apiClient.get(`/admin/grupos/${id}/sesiones-clase`)
+  return data
 }

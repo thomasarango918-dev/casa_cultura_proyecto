@@ -76,3 +76,6 @@ def roles_administrables(nombre_rol_actor: str) -> frozenset[str]:
 # Fase 6: roles que entran al módulo de grupos. Se usan los alias porque el Maestro
 # puede llamarse Profesor, Maestro o Docente en TBL_Roles.
 ROLES_GRUPOS = tuple(nombres_de_rol(frozenset({ADMINISTRADOR, COORDINADOR, MAESTRO})))
+
+# Fase 6 (asistencias): roles que toman asistencia. El Maestro solo en los grupos de sus programas.
+ROLES_ASISTENCIA = tuple(nombres_de_rol(frozenset({ADMINISTRADOR, MAESTRO})))

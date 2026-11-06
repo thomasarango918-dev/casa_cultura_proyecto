@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse
 from app.config.database import check_database_connection, engine
 from app.config.settings import settings
 from app.controllers import (
+    asistencia_controller,
     auth_controller,
     configuracion_controller,
     configuracion_sistema_controller,
@@ -100,20 +101,20 @@ register_exception_handlers(app)
 # Rutas
 # --------------------------------------------------------------------------- #
 # Todos los controladores se agrupan bajo /api/v1. Para agregar un módulo nuevo
-# (por ejemplo, solicitudes) basta con incluir aquí su router.
 api_v1 = APIRouter(prefix=settings.API_V1_PREFIX)
 api_v1.include_router(auth_controller.router)
-api_v1.include_router(recuperacion_controller.router)  # Fase 4: recuperación de contraseña.
-api_v1.include_router(public_controller.router)  # Fase 2: sin token.
-api_v1.include_router(solicitud_controller.router)  # Fase 2: BackOffice con token.
+api_v1.include_router(recuperacion_controller.router)  # recuperación de contraseña.
+api_v1.include_router(public_controller.router)  # sin token
+api_v1.include_router(solicitud_controller.router)  # BackOffice con token
 api_v1.include_router(dashboard_controller.router)
-api_v1.include_router(documento_controller.router)  # Inventario de documentos.
-api_v1.include_router(usuario_controller.router)  # Fase 3: usuarios y roles.
-api_v1.include_router(configuracion_controller.router)  # Fase 3: configuración de la cuenta.
-api_v1.include_router(configuracion_sistema_controller.router)  # Fase 3: inscripciones y periodo.
-api_v1.include_router(programa_controller.categorias_router)  # Fase 5: categorías.
-api_v1.include_router(programa_controller.programas_router)  # Fase 5: programas.
+api_v1.include_router(documento_controller.router)  # Inventario de documentos
+api_v1.include_router(usuario_controller.router)  # Usuarios y roles.
+api_v1.include_router(configuracion_controller.router)  # Configuración de la cuenta
+api_v1.include_router(configuracion_sistema_controller.router)  # Inscripciones y periodo
+api_v1.include_router(programa_controller.categorias_router)  # Categorías
+api_v1.include_router(programa_controller.programas_router)  # Programas
 api_v1.include_router(grupo_controller.router)  # Fase 6: grupos.
+api_v1.include_router(asistencia_controller.router)  # Fase 6: asistencias.
 app.include_router(api_v1)
 
 

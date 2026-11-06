@@ -4,12 +4,13 @@ Capa Controlador (MVC): grupos (Fase 6, JWT + Administrador/Coordinador/Maestro)
     GET    /api/v1/admin/grupos                                    Grupos visibles para el rol.
     GET    /api/v1/admin/grupos/programas                          Programas donde puede crear grupos.
     POST   /api/v1/admin/grupos                                    Crear grupo.
-    PUT    /api/v1/admin/grupos/{id}                               Renombrar grupo.
+    PUT    /api/v1/admin/grupos/{id}                               Renombrar grupo y reemplazar su horario.
     DELETE /api/v1/admin/grupos/{id}                               Eliminar (400 con estudiantes activos).
     GET    /api/v1/admin/grupos/{id}/estudiantes                   Estudiantes activos del grupo.
     GET    /api/v1/admin/grupos/{id}/estudiantes-disponibles       Aprobados del programa que no están en el grupo.
     POST   /api/v1/admin/grupos/{id}/estudiantes                   Asignación masiva (solicitudes_ids).
     DELETE /api/v1/admin/grupos/{id}/estudiantes/{solicitud_id}    Desvincular (soft delete).
+    GET    /api/v1/admin/grupos/{id}/sesiones-clase                Fechas de clase hasta hoy, sin festivos.
 
 El Coordinador solo consulta; el Maestro recibe 403 fuera de sus programas.
 """
@@ -29,6 +30,7 @@ from app.schemas.grupo_schema import (
     GrupoOut,
     GrupoUpdate,
     ProgramaGrupoOut,
+    SesionesClaseOut,
 )
 from app.services.grupo_service import GrupoService
 from app.utils.exceptions import DomainError, PermisoDenegadoError, RecursoNoEncontradoError
@@ -85,7 +87,7 @@ def create_grupo(data: GrupoCreate, service: Service) -> GrupoOut:
         raise _http_error(exc) from exc
 
 
-@router.put("/{grupo_id}", response_model=GrupoOut, summary="Renombrar grupo", responses=_ERRORES)
+@router.put("/{grupo_id}", response_model=GrupoOut, summary="Renombrar grupo y actualizar su horario", responses=_ERRORES)
 def update_grupo(grupo_id: GrupoId, data: GrupoUpdate, service: Service) -> GrupoOut:
     try:
         return service.actualizar(grupo_id, data)
@@ -147,5 +149,18 @@ def asignar_estudiantes(grupo_id: GrupoId, data: AsignarEstudiantesRequest, serv
 def desasignar_estudiante(grupo_id: GrupoId, solicitud_id: SolicitudId, service: Service) -> None:
     try:
         service.desasignar(grupo_id, solicitud_id)
+    except DomainError as exc:
+        raise _http_error(exc) from exc
+
+
+@router.get(
+    "/{grupo_id}/sesiones-clase",
+    response_model=SesionesClaseOut,
+    summary="Fechas de clase desde la creación del grupo hasta hoy (sin festivos de Colombia)",
+    responses=_ERRORES,
+)
+def list_sesiones_clase(grupo_id: GrupoId, service: Service) -> SesionesClaseOut:
+    try:
+        return service.sesiones_clase(grupo_id)
     except DomainError as exc:
         raise _http_error(exc) from exc

@@ -6,10 +6,21 @@
  * sigue siendo la verificación real.
  */
 import { useCallback, useEffect, useState } from 'react'
-import { LoaderCircle, Maximize2, Pencil, Plus, RefreshCw, TriangleAlert, UserPlus, UsersRound } from 'lucide-react'
+import {
+  CalendarDays,
+  LoaderCircle,
+  Maximize2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  TriangleAlert,
+  UserPlus,
+  UsersRound,
+} from 'lucide-react'
 import AsignarEstudiantesModal from '../components/grupos/AsignarEstudiantesModal'
 import GrupoEstudiantesModal from '../components/grupos/GrupoEstudiantesModal'
 import GrupoFormModal from '../components/grupos/GrupoFormModal'
+import HorarioSemanalModal from '../components/grupos/HorarioSemanalModal'
 import AccessDenied from '../components/ui/AccessDenied'
 import Button from '../components/ui/Button'
 import { ROL, ROLES_GESTION_GRUPOS, claveRol, tieneRol } from '../config/roles'
@@ -17,6 +28,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { getApiErrorMessage } from '../services/apiClient'
 import { listGrupos } from '../services/gruposService'
+import { resumenHorario } from '../utils/horarios'
 import { getProgramIcon } from '../utils/programIcons'
 
 const porProgramaYNombre = (a, b) =>
@@ -31,6 +43,7 @@ const DESCRIPCION = {
 function GrupoCard({ grupo, puedeGestionar, onEditar, onAsignar, onExpandir }) {
   const Icon = getProgramIcon(grupo.programa_nombre)
   const maestros = grupo.maestros.map((maestro) => maestro.nombre_completo).join(', ')
+  const horario = resumenHorario(grupo.horarios)
 
   return (
     <article className="flex flex-col rounded-xl bg-white shadow-panel ring-1 ring-slate-200/80">
@@ -71,6 +84,10 @@ function GrupoCard({ grupo, puedeGestionar, onEditar, onAsignar, onExpandir }) {
           <dd className={maestros ? 'text-slate-700' : 'text-slate-400'}>{maestros || 'Sin maestros asignados'}</dd>
         </div>
         <div className="flex gap-1.5">
+          <dt className="shrink-0 text-slate-500">Horario:</dt>
+          <dd className={horario ? 'tabular-nums text-slate-700' : 'text-slate-400'}>{horario || 'Sin horario'}</dd>
+        </div>
+        <div className="flex gap-1.5">
           <dt className="text-slate-500">Estudiantes asignados:</dt>
           <dd className="font-semibold tabular-nums text-pizarra-900">{grupo.estudiantes_activos}</dd>
         </div>
@@ -89,12 +106,13 @@ export default function GruposPage() {
   const toast = useToast()
   const { user } = useAuth()
   const puedeGestionar = tieneRol(user?.rol, ROLES_GESTION_GRUPOS)
+  const esMaestro = claveRol(user?.rol) === ROL.MAESTRO
 
   const [grupos, setGrupos] = useState([])
   const [status, setStatus] = useState('loading') // loading | ready | error | forbidden
   const [errorMessage, setErrorMessage] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
-  // { tipo: 'crear' } | { tipo: 'editar' | 'asignar' | 'expandir', id }
+  // { tipo: 'crear' | 'horario' } | { tipo: 'editar' | 'asignar' | 'expandir', id }
   const [modal, setModal] = useState(null)
 
   useEffect(() => {
@@ -156,7 +174,15 @@ export default function GruposPage() {
             {DESCRIPCION[claveRol(user?.rol)] ?? DESCRIPCION[ROL.COORDINADOR]}
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            icon={CalendarDays}
+            onClick={() => setModal({ tipo: 'horario' })}
+            disabled={status !== 'ready'}
+          >
+            {esMaestro ? 'Mi Horario Semanal' : 'Horario Semanal'}
+          </Button>
           <Button
             variant="secondary"
             icon={RefreshCw}
@@ -228,7 +254,15 @@ export default function GruposPage() {
         </>
       )}
 
-      {modal?.tipo === 'crear' && <GrupoFormModal grupo={null} onClose={closeModal} onSaved={guardarGrupo} />}
+      {modal?.tipo === 'horario' && (
+        <HorarioSemanalModal
+          grupos={grupos}
+          titulo={esMaestro ? 'Mi horario semanal' : 'Horario semanal de todos los grupos'}
+          onClose={closeModal}
+        />
+      )}
+
+      {modal?.tipo === 'crear' &&<GrupoFormModal grupo={null} onClose={closeModal} onSaved={guardarGrupo} />}
 
       {modal?.tipo === 'editar' && seleccionado && (
         <GrupoFormModal grupo={seleccionado} onClose={closeModal} onSaved={guardarGrupo} onDeleted={quitarGrupo} />

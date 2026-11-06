@@ -17,6 +17,7 @@
  *   /dashboard/documentos   Protegida. Inventario de documentos (búsqueda por documento o radicado).
  *   /dashboard/programas    Protegida. Categorías y programas (Administrador y Coordinador).
  *   /dashboard/grupos       Protegida. Grupos (Administrador, Coordinador solo lectura, Maestro sus programas).
+ *   /dashboard/asistencias  Protegida. Asistencia (Administrador todos los grupos, Maestro los suyos).
  *   /dashboard/usuarios     Protegida. Usuarios y roles (Administrador y Coordinador).
  *   /dashboard/configuracion Protegida. Configuración de la cuenta (todos los roles).
  *
@@ -30,9 +31,10 @@ import MainLayout from './components/layout/MainLayout'
 import ProtectedRoute from './components/routing/ProtectedRoute'
 import PublicOnlyRoute from './components/routing/PublicOnlyRoute'
 import RoleRoute from './components/routing/RoleRoute'
-import { ROL, ROLES_GESTION_PROGRAMAS, ROLES_GESTION_USUARIOS, ROLES_GRUPOS } from './config/roles'
+import { ROL, ROLES_ASISTENCIA, ROLES_GESTION_PROGRAMAS, ROLES_GESTION_USUARIOS, ROLES_GRUPOS } from './config/roles'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
+import AsistenciasPage from './pages/AsistenciasPage'
 import ConfiguracionPage from './pages/ConfiguracionPage'
 import DashboardBasePage from './pages/DashboardBasePage'
 import DocumentosPage from './pages/DocumentosPage'
@@ -80,6 +82,9 @@ export default function App() {
                 </Route>
                 <Route element={<RoleRoute roles={ROLES_GRUPOS} />}>
                   <Route path="/dashboard/grupos" element={<GruposPage />} />
+                </Route>
+                <Route element={<RoleRoute roles={ROLES_ASISTENCIA} />}>
+                  <Route path="/dashboard/asistencias" element={<AsistenciasPage />} />
                 </Route>
                 <Route element={<RoleRoute roles={ROLES_GESTION_USUARIOS} />}>
                   <Route path="/dashboard/usuarios" element={<UsuariosPage />} />

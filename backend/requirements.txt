@@ -23,3 +23,6 @@ python-multipart>=0.0.18
 
 # Fase 4: envío de correos con Resend (opcional; si no se configura RESEND_API_KEY se usa SMTP o la consola).
 resend>=2.0.0
+
+# Fase 6: festivos de Colombia (cálculo local, sin APIs externas) para las sesiones de clase.
+holidays>=0.60

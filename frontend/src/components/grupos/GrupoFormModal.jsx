@@ -1,5 +1,6 @@
 /**
- * Modal para crear un grupo (programa + nombre) o renombrarlo y eliminarlo.
+ * Modal para crear un grupo (programa + nombre + horario) o modificarlo y eliminarlo.
+ * El horario se envía completo: la API reemplaza los bloques anteriores.
  *
  * @param {object} props
  * @param {object|null} props.grupo Grupo a editar; null para crear.
@@ -9,6 +10,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Save, Trash2, UsersRound } from 'lucide-react'
+import HorarioBloquesField, { nuevoBloque } from './HorarioBloquesField'
 import Button from '../ui/Button'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import Modal from '../ui/Modal'
@@ -16,8 +18,15 @@ import SelectField from '../ui/SelectField'
 import TextField from '../ui/TextField'
 import { useToast } from '../../context/ToastContext'
 import { getApiErrorMessage, getApiFieldErrors } from '../../services/apiClient'
-import { crearGrupo, eliminarGrupo, listProgramasParaGrupos, renombrarGrupo } from '../../services/gruposService'
+import { actualizarGrupo, crearGrupo, eliminarGrupo, listProgramasParaGrupos } from '../../services/gruposService'
+import { hhmm, mismoHorario, validarHorarios } from '../../utils/horarios'
 import { limpiarEspacios } from '../../utils/validators'
+
+/** Mensaje de un 422 sobre el horario ("horarios", "horarios.0.hora_fin"...), sin el prefijo de Pydantic. */
+function errorDeHorario(error) {
+  const item = (error?.response?.data?.errores ?? []).find((e) => String(e.campo ?? '').startsWith('horarios'))
+  return item ? String(item.mensaje ?? '').replace(/^Value error,\s*/i, '') : ''
+}
 
 const NOMBRE_MIN = 2
 const NOMBRE_MAX = 100
@@ -34,6 +43,11 @@ export default function GrupoFormModal({ grupo, onClose, onSaved, onDeleted }) {
   const esEdicion = Boolean(grupo)
 
   const [nombre, setNombre] = useState(grupo?.nombre ?? '')
+  const [bloques, setBloques] = useState(() =>
+    (grupo?.horarios ?? []).map((h) =>
+      nuevoBloque({ dia_semana: h.dia_semana, hora_inicio: hhmm(h.hora_inicio), hora_fin: hhmm(h.hora_fin) }),
+    ),
+  )
   const [programaId, setProgramaId] = useState('')
   const [programas, setProgramas] = useState({ status: esEdicion ? 'ready' : 'loading', items: [] })
   const [errors, setErrors] = useState({})
@@ -63,7 +77,8 @@ export default function GrupoFormModal({ grupo, onClose, onSaved, onDeleted }) {
   }, [esEdicion, toast])
 
   const nombreLimpio = limpiarEspacios(nombre)
-  const hayCambios = !esEdicion || nombreLimpio !== grupo.nombre
+  const horarios = bloques.map(({ dia_semana, hora_inicio, hora_fin }) => ({ dia_semana, hora_inicio, hora_fin }))
+  const hayCambios = !esEdicion || nombreLimpio !== grupo.nombre || !mismoHorario(horarios, grupo.horarios)
   const puedeEliminar = esEdicion && grupo.estudiantes_activos === 0
 
   async function handleSubmit(event) {
@@ -72,6 +87,8 @@ export default function GrupoFormModal({ grupo, onClose, onSaved, onDeleted }) {
     if (!esEdicion && !programaId) nextErrors.programa_id = 'Seleccione el programa del grupo.'
     const errorNombre = validarNombre(nombre)
     if (errorNombre) nextErrors.nombre = errorNombre
+    const errorHorario = validarHorarios(horarios)
+    if (errorHorario) nextErrors.horarios = errorHorario
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors)
       if (nextErrors.nombre) nombreRef.current?.focus()
@@ -85,8 +102,8 @@ export default function GrupoFormModal({ grupo, onClose, onSaved, onDeleted }) {
     setEnviando(true)
     try {
       const guardado = esEdicion
-        ? await renombrarGrupo(grupo.id, nombreLimpio)
-        : await crearGrupo({ programa_id: Number(programaId), nombre: nombreLimpio })
+        ? await actualizarGrupo(grupo.id, { nombre: nombreLimpio, horarios })
+        : await crearGrupo({ programa_id: Number(programaId), nombre: nombreLimpio, horarios })
       toast.success(
         esEdicion ? 'Grupo actualizado' : 'Grupo creado',
         `«${guardado.nombre}» (${guardado.programa_nombre}).`,
@@ -96,6 +113,8 @@ export default function GrupoFormModal({ grupo, onClose, onSaved, onDeleted }) {
     } catch (error) {
       const message = getApiErrorMessage(error)
       const fieldErrors = getApiFieldErrors(error)
+      const mensajeHorario = errorDeHorario(error)
+      if (mensajeHorario) fieldErrors.horarios = mensajeHorario
       if (error.response?.status === 400) fieldErrors[/programa/i.test(message) ? 'programa_id' : 'nombre'] = message
       setErrors(fieldErrors)
       toast.error(esEdicion ? 'No fue posible guardar el grupo' : 'No fue posible crear el grupo', message)
@@ -130,7 +149,7 @@ export default function GrupoFormModal({ grupo, onClose, onSaved, onDeleted }) {
     <>
       <Modal
         titleId="titulo-grupo"
-        size="md"
+        size="lg"
         dismissible={!ocupado && !confirmarEliminar}
         onClose={onClose}
         header={
@@ -208,6 +227,16 @@ export default function GrupoFormModal({ grupo, onClose, onSaved, onDeleted }) {
             maxLength={NOMBRE_MAX}
             placeholder="Ej. Grupo A - Sábados"
             autoComplete="off"
+            disabled={ocupado}
+          />
+
+          <HorarioBloquesField
+            bloques={bloques}
+            onChange={(next) => {
+              setBloques(next)
+              if (errors.horarios) setErrors((current) => ({ ...current, horarios: '' }))
+            }}
+            error={errors.horarios}
             disabled={ocupado}
           />
 

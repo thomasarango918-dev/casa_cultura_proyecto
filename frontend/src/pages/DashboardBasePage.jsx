@@ -71,7 +71,7 @@ const MODULES = [
   { name: 'Radicación pública de inscripciones', available: true },
   { name: 'Programas y categorías', available: true },
   { name: 'Grupos', available: true },
-  { name: 'Control de asistencia', available: false },
+  { name: 'Horarios y control de asistencia', available: true },
 ]
 
 /** Encabezados de la tabla de solicitudes recientes. */
