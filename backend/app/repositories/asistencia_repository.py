@@ -26,7 +26,20 @@ class AsistenciaRepository:
         return list(self._db.scalars(stmt))
 
     def guardar(self, grupo_id: int, fecha_clase: date, estados: Iterable[tuple[int, str]], usuario_id: int) -> int:
-        """UPSERT sobre el índice único (grupo_id, solicitud_id, fecha_clase)."""
+        """UPSERT idempotente sobre el índice único (grupo_id, solicitud_id, fecha_clase).
+
+        SQL generado (una sola sentencia para todos los estudiantes):
+
+            INSERT INTO tbl_asistencia_estudiante (grupo_id, solicitud_id, fecha_clase, estado, modificado_por)
+            VALUES (...), (...)
+            ON CONFLICT (grupo_id, solicitud_id, fecha_clase)
+            DO UPDATE SET estado = EXCLUDED.estado,
+                          modificado_por = EXCLUDED.modificado_por,
+                          fecha_modificacion = now();
+
+        Fase 8: reenviar la misma toma (reintento de la sincronización offline, doble clic, dos
+        pestañas) nunca duplica filas; la última escritura deja el estado vigente.
+        """
         filas = [
             {
                 "grupo_id": grupo_id,

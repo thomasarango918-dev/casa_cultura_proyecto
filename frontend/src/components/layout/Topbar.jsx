@@ -14,13 +14,16 @@
  * @param {() => void} props.onOpenMobile Abre el menú lateral en móvil.
  * @param {object} props.user Usuario autenticado.
  * @param {() => void} props.onLogout Cierra la sesión.
+ * @param {boolean} props.online Fase 8: estado de la red (indicador Online/Offline).
+ * @param {number} [props.pendientes] Fase 8: asistencias offline pendientes de sincronizar.
  */
 import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import BrandMark from '../brand/BrandMark'
+import NetworkStatus from './NetworkStatus'
 import NotificationsMenu from './NotificationsMenu'
 import UserMenu from './UserMenu'
 
-export default function Topbar({ collapsed, onToggleCollapsed, onOpenMobile, user, onLogout }) {
+export default function Topbar({ collapsed, onToggleCollapsed, onOpenMobile, user, onLogout, online = true, pendientes = 0 }) {
   // Estilo compartido por los botones de solo icono.
   const iconButton =
     'grid size-10 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-pizarra-900'
@@ -60,6 +63,7 @@ export default function Topbar({ collapsed, onToggleCollapsed, onOpenMobile, use
 
         {/* Acciones a la derecha (ml-auto empuja el bloque hasta el borde) */}
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          <NetworkStatus online={online} pendientes={pendientes} />
           <NotificationsMenu />
           <div aria-hidden="true" className="mx-1 hidden h-6 w-px bg-slate-200 sm:block" />
           <UserMenu user={user} onLogout={onLogout} />

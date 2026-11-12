@@ -310,7 +310,7 @@ Los nombres reales de los scripts de la Fase 2 son `ajustes_solicitudes.sql` y `
 8. `database/fase5_grupos.sql` (Fase 6, **obligatorio antes de iniciar el backend**)
 9. `database/fase6_asistencias.sql` (Fase 6 — horarios y asistencias, **obligatorio antes de iniciar el backend**)
 
-Todos son idempotentes y no borran datos.
+Todos son idempotentes y no borran datos. La Fase 7 y la Fase 8 no agregaron scripts.
 
 ---
 
@@ -746,6 +746,53 @@ Guía: **`GUIA_LANZAMIENTO_FASE7.md`**. **Sin cambios en la BD** (solo lectura: 
 - HTTP contra la BD real: 401 sin token, 200 Administrador (datos verificados), 403 Maestro en solicitudes/categorías; ocupación por maestro (25, 26, 27) coincide con `tbl_programa_maestro`; Maestro propio 200 y ajeno 403; `maestro_id` no maestro 404; sin parámetro 422. Programa y maestro nuevos aparecen al instante (transacción revertida). No hay usuarios Coordinador/Estudiante en la BD local para probarlos.
 - Modales renderizados en jsdom con datos simulados: segmentos apilados, totales sobre las columnas, tabla, selector (Admin: vacío hasta elegir; Maestro: bloqueado y preseleccionado).
 - `exportToCsv` probado en Node con DOM simulado (BOM, escapes, fórmulas, filas vacías). `npm run build` sin errores. **No se probó visualmente en el navegador.**
+
+---
+
+## FASE 8 — PWA Y ASISTENCIAS SIN CONEXIÓN (Implementado)
+
+Guía: **`GUIA_LANZAMIENTO_FASE8.md`**. **Sin cambios en la BD.** Dependencias nuevas (frontend): `idb`, y `vite-plugin-pwa` como dependencia de desarrollo.
+
+### Resumen
+- **Vite PWA** (`vite.config.js`):
+  - Manifiesto "Casa de la Cultura" (`start_url /dashboard`, `standalone`). Íconos en `public/pwa-*.png` y `public/apple-touch-icon.png`.
+  - Workbox precarga los estáticos y usa `navigateFallback` a `index.html` (excepto `/api/`). Registro `autoUpdate`.
+  - El service worker **no** guarda la API en caché y está apagado en `npm run dev`.
+- **Sesión:** `apiClient.js` cierra la sesión solo con un HTTP **401** real. Network Error, timeout o cancelación conservan el token. Auxiliares nuevos: `isOffline()` e `isNetworkError()`.
+- **Asistencias con IndexedDB (`idb`):** `utils/offlineSync.js`, BD `CasaCulturaDB` v1.
+  - Store `pending_attendances`, clave `usuario:grupo:fecha`. Funciones `saveToQueue`, `getQueue`, `removeFromQueue`, `getQueueCount` y `getQueueItem`.
+  - Store `cached_snapshots`, con las copias del listado y de las matrices para mostrarlas sin red. Se borra al cerrar sesión; la cola se conserva.
+  - Cada cambio emite `QUEUE_CHANGED_EVENT`.
+- **Endpoint de asistencias con UPSERT:**
+  - `INSERT … ON CONFLICT (grupo_id, solicitud_id, fecha_clase) DO UPDATE SET estado = EXCLUDED.estado, modificado_por = EXCLUDED.modificado_por, fecha_modificacion = now()` (`AsistenciaRepository.guardar`). Un reenvío no duplica filas.
+  - Nuevo campo de entrada `sincronizacion_offline` (por defecto false). Con true se acepta una fecha pasada de hasta `DIAS_SINCRONIZACION_OFFLINE = 7` días, si ese día fue sesión del grupo (`sesiones_de_clase`), y se omiten los estudiantes que ya no están en el grupo. La respuesta los cuenta en el nuevo campo `omitidos`.
+  - Sin el campo, la regla de la Fase 6 ("solo hoy") no cambia.
+
+### Frontend
+- **Red:** `hooks/useOnlineStatus.js` (eventos `online`/`offline`). `components/layout/NetworkStatus.jsx` va en el `Topbar`: círculo verde "Online" o rojo "Offline".
+- **Bloqueo global:**
+  - `context/OfflineBlockContext.jsx` vale true sin red y fuera de `/dashboard/asistencias`. Lo provee `MainLayout`, que además muestra un aviso.
+  - `Button` bloquea los `type="submit"` y los que tienen `requiresNetwork`. Para dejar un envío activo sin red se usa `requiresNetwork={false}`.
+  - `ConfirmDialog` bloquea su botón de confirmar (prop `requiresNetwork`, true por defecto).
+  - `EvaluacionModal` bloquea Aprobar/Rechazar.
+- **Asistencias:**
+  - `MatrizAsistencia` guarda en la cola cuando no hay red, o cuando hay red pero la API no responde. Muestra el toast "Sin conexión: Guardado localmente" y una nube con el contador si `getQueueCount() > 0`. Sin red se arma con la copia local; si la copia no es de hoy (`hoyColombia()` en `utils/formatters.js`), queda en solo lectura.
+  - `AsistenciasPage` guarda el listado y precarga en segundo plano la matriz de hoy de cada grupo (máx. 30).
+- **Auto-sync:** `hooks/useOfflineSync.js`, montado en `MainLayout`.
+  - Se ejecuta al montar, con `online`, al volver a la pestaña y cada 60 s.
+  - 200: quita la entrada y muestra "Asistencias offline sincronizadas con éxito".
+  - Red, 5xx o 401: reintenta más tarde.
+  - 400/403/404/422: quita la entrada y avisa del motivo.
+  - Al terminar emite `SYNC_DONE_EVENT`, que hace recargar la matriz.
+
+### Pruebas realizadas
+- **Backend**, contra la BD real en una transacción revertida, con "hoy" simulado: 12 casos.
+  - En línea hoy guarda; el UPSERT no duplica filas y actualiza el estado; el mismo payload dos veces da las mismas filas.
+  - Fecha pasada sin el campo → 400. Offline de un día de clase anterior → guarda.
+  - Offline en domingo sin horario, en festivo (2-nov), con más de 7 días o con fecha futura → 400.
+  - Estudiante ajeno: en línea → 400; offline → se omite.
+- **`offlineSync.js`**, en Node con `fake-indexeddb`: 9 casos (reemplazo por clave, conteo por usuario, eventos, `clearSnapshots` sin tocar la cola).
+- **Frontend:** `npm run build` sin errores; se generan el manifiesto y `sw.js` con 27 entradas precargadas. **No se probó visualmente en el navegador** (ni la instalación ni el modo offline).
 
 ---
 

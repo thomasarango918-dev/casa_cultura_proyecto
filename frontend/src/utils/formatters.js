@@ -85,3 +85,12 @@ export function formatFileSize(bytes = 0) {
   }
   return `${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 }).format(size)} ${units[unit]}`
 }
+
+/**
+ * Fase 8: fecha de hoy en Colombia ('AAAA-MM-DD'), igual que `hoy_colombia()` del backend
+ * (UTC-5 fijo; Colombia no tiene horario de verano). Se usa sin conexión para saber si la copia
+ * local de una matriz de asistencia es de hoy.
+ */
+export function hoyColombia(now = Date.now()) {
+  return new Date(now - 5 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}

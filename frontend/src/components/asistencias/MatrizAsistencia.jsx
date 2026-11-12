@@ -7,19 +7,52 @@
  *
  * "Guardar Asistencia de Hoy" envía solo la columna de hoy (la API responde 400 con otra fecha).
  *
+ * Fase 8 (sin conexión):
+ *   - La matriz se guarda en IndexedDB al cargarla; sin red se muestra esa copia. Si la copia no es
+ *     de hoy, la columna de hoy no se puede editar (no se sabe si hay clase ni quiénes son los estudiantes).
+ *   - Sin red (o si la API no responde), "Guardar" deja la toma en la cola local (saveToQueue) y avisa
+ *     "Sin conexión: Guardado localmente". El botón nunca se bloquea por falta de red.
+ *   - Una toma pendiente se muestra como el estado de hoy, con el aviso "pendiente de sincronizar".
+ *   - Ícono de nube junto al botón mientras haya asistencias en la cola (getQueueCount() > 0).
+ *   - Al terminar la sincronización automática (SYNC_DONE_EVENT) se recarga la matriz.
+ *
  * @param {object} props
  * @param {number} props.grupoId
  * @param {() => void} props.onVolver
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, CalendarX2, Info, LoaderCircle, RefreshCw, Save, TriangleAlert, UsersRound } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ArrowLeft,
+  CalendarX2,
+  CloudUpload,
+  HardDrive,
+  Info,
+  LoaderCircle,
+  RefreshCw,
+  Save,
+  TriangleAlert,
+  UsersRound,
+} from 'lucide-react'
 import AttendanceToggle, { ESTADOS } from './AttendanceToggle'
 import AccessDenied from '../ui/AccessDenied'
 import Button from '../ui/Button'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
-import { getApiErrorMessage } from '../../services/apiClient'
+import useOfflineQueueCount from '../../hooks/useOfflineQueueCount'
+import { SYNC_DONE_EVENT } from '../../hooks/useOfflineSync'
+import { getApiErrorMessage, isNetworkError, isOffline } from '../../services/apiClient'
 import { getMatrizAsistencia, guardarAsistencia } from '../../services/asistenciasService'
+import { formatDateTime, hoyColombia } from '../../utils/formatters'
+import {
+  getQueueItem,
+  getSnapshot,
+  queueId,
+  removeFromQueue,
+  saveSnapshot,
+  saveToQueue,
+  snapshotMatriz,
+} from '../../utils/offlineSync'
 
 /** 'AAAA-MM-DD' -> Date local (new Date('AAAA-MM-DD') sería UTC y en Colombia mostraría el día anterior). */
 function fechaLocal(iso) {
@@ -31,16 +64,34 @@ const formatoDia = new Intl.DateTimeFormat('es-CO', { weekday: 'short' })
 const formatoFecha = new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: 'short' })
 const formatoLargo = new Intl.DateTimeFormat('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })
 
-/** Estado de hoy de cada estudiante: lo guardado o AUSENTE por defecto. */
-function estadosDeHoy(matriz) {
+/**
+ * Estado de hoy de cada estudiante: la toma pendiente en la cola local, si existe; si no,
+ * lo guardado en la API o AUSENTE por defecto.
+ */
+function estadosDeHoy(matriz, pendiente = null) {
+  const local = pendiente ? Object.fromEntries(pendiente.registros.map((r) => [r.solicitud_id, r.estado])) : {}
   return Object.fromEntries(
-    matriz.estudiantes.map((e) => [e.solicitud_id, e.asistencias[matriz.hoy] ?? 'AUSENTE']),
+    matriz.estudiantes.map((e) => [e.solicitud_id, local[e.solicitud_id] ?? e.asistencias[matriz.hoy] ?? 'AUSENTE']),
   )
+}
+
+/**
+ * Copia local que no es de hoy: solo para consulta. "Hoy" pasa a la fecha real (sin columna
+ * editable) y se marca como desactualizada.
+ */
+function copiaDesactualizada(matriz, hoy) {
+  return { ...matriz, hoy, es_dia_de_clase: false, desactualizada: true }
 }
 
 export default function MatrizAsistencia({ grupoId, onVolver }) {
   const toast = useToast()
-  const [estado, setEstado] = useState({ status: 'loading', matriz: null, error: '' })
+  const { user } = useAuth()
+  const usuarioId = user?.id
+  const pendientesEnCola = useOfflineQueueCount(usuarioId)
+  // origen: 'api' | 'local' (copia de IndexedDB); copiaDe: momento en que se guardó la copia local.
+  const [estado, setEstado] = useState({ status: 'loading', matriz: null, error: '', origen: 'api', copiaDe: null })
+  // Toma de hoy guardada sin conexión y aún no sincronizada (entrada de la cola) o null.
+  const [pendiente, setPendiente] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [hoyEstados, setHoyEstados] = useState({})
   const [guardando, setGuardando] = useState(false)
@@ -50,29 +101,85 @@ export default function MatrizAsistencia({ grupoId, onVolver }) {
   useEffect(() => {
     let cancelado = false
     setEstado((current) => ({ ...current, status: 'loading' }))
+    const mostrar = async (matriz, origen, copiaDe = null) => {
+      const enCola = await getQueueItem(usuarioId, grupoId, matriz.hoy)
+      if (cancelado) return
+      setPendiente(enCola)
+      setEstado({ status: 'ready', matriz, error: '', origen, copiaDe })
+      setHoyEstados(estadosDeHoy(matriz, enCola))
+    }
+
     getMatrizAsistencia(grupoId)
       .then((matriz) => {
-        if (cancelado) return
-        setEstado({ status: 'ready', matriz, error: '' })
-        setHoyEstados(estadosDeHoy(matriz))
+        if (cancelado) return undefined
+        saveSnapshot(snapshotMatriz(usuarioId, grupoId), matriz)
+        return mostrar(matriz, 'api')
       })
-      .catch((error) => {
+      .catch(async (error) => {
         if (cancelado) return
         if (error.response?.status === 403) {
-          setEstado({ status: 'forbidden', matriz: null, error: '' })
+          setEstado({ status: 'forbidden', matriz: null, error: '', origen: 'api', copiaDe: null })
           return
         }
-        setEstado({ status: 'error', matriz: null, error: getApiErrorMessage(error, 'No fue posible cargar la asistencia.') })
+        // Sin red: última copia guardada en este equipo.
+        if (isNetworkError(error)) {
+          const copia = await getSnapshot(snapshotMatriz(usuarioId, grupoId))
+          if (cancelado) return
+          if (copia) {
+            const hoy = hoyColombia()
+            const matriz = copia.data.hoy === hoy ? copia.data : copiaDesactualizada(copia.data, hoy)
+            await mostrar(matriz, 'local', copia.guardado_en)
+            return
+          }
+        }
+        setEstado({
+          status: 'error',
+          matriz: null,
+          error: getApiErrorMessage(error, 'No fue posible cargar la asistencia.'),
+          origen: 'api',
+          copiaDe: null,
+        })
       })
     return () => {
       cancelado = true
     }
-  }, [grupoId, reloadKey])
+  }, [grupoId, reloadKey, usuarioId])
 
   const matriz = estado.matriz
-  const guardados = useMemo(() => (matriz ? estadosDeHoy(matriz) : {}), [matriz])
+  const guardados = useMemo(() => (matriz ? estadosDeHoy(matriz, pendiente) : {}), [matriz, pendiente])
   const hayCambios = Object.entries(hoyEstados).some(([id, valor]) => guardados[id] !== valor)
   const hoyGuardado = Boolean(matriz?.estudiantes.some((e) => e.asistencias[matriz.hoy]))
+  const hoyMatriz = matriz?.hoy
+
+  // Al terminar la sincronización automática se recarga la matriz (si no hay cambios sin guardar).
+  const hayCambiosRef = useRef(hayCambios)
+  useEffect(() => {
+    hayCambiosRef.current = hayCambios
+  }, [hayCambios])
+  useEffect(() => {
+    if (!hoyMatriz) return undefined
+    const alSincronizar = async () => {
+      if (hayCambiosRef.current) {
+        // Se conservan las ediciones en pantalla; solo se actualiza el aviso de pendiente.
+        setPendiente(await getQueueItem(usuarioId, grupoId, hoyMatriz))
+        return
+      }
+      setReloadKey((key) => key + 1)
+    }
+    window.addEventListener(SYNC_DONE_EVENT, alSincronizar)
+    return () => window.removeEventListener(SYNC_DONE_EVENT, alSincronizar)
+  }, [usuarioId, grupoId, hoyMatriz])
+
+  // Si se estaba viendo la copia local, al volver la red se carga la versión del servidor.
+  const origen = estado.origen
+  useEffect(() => {
+    if (origen !== 'local') return undefined
+    const alVolverRed = () => {
+      if (!hayCambiosRef.current) setReloadKey((key) => key + 1)
+    }
+    window.addEventListener('online', alVolverRed)
+    return () => window.removeEventListener('online', alVolverRed)
+  }, [origen])
 
   // La columna de hoy queda al final: se desplaza la tabla hasta ella al cargar.
   useEffect(() => {
@@ -98,27 +205,65 @@ export default function MatrizAsistencia({ grupoId, onVolver }) {
     return conteo
   }, [hoyEstados])
 
+  /** Deja la toma de hoy en la cola local (sin conexión o sin respuesta de la API). */
+  const guardarEnCola = useCallback(
+    async (registros) => {
+      try {
+        const item = await saveToQueue({
+          usuario_id: usuarioId,
+          grupo_id: grupoId,
+          grupo_nombre: matriz.grupo_nombre,
+          fecha_clase: matriz.hoy,
+          registros,
+        })
+        setPendiente(item)
+        toast.info(
+          'Sin conexión: Guardado localmente',
+          'La asistencia se enviará sola al servidor cuando vuelva la conexión. No borre los datos del navegador.',
+        )
+      } catch {
+        toast.error(
+          'No fue posible guardar la asistencia en este equipo',
+          'El navegador no permite el almacenamiento local (IndexedDB). Conéctese a internet para guardar.',
+        )
+      }
+    },
+    [usuarioId, grupoId, matriz, toast],
+  )
+
   async function handleGuardar() {
     setGuardando(true)
+    const registros = matriz.estudiantes.map((e) => ({ solicitud_id: e.solicitud_id, estado: hoyEstados[e.solicitud_id] }))
+    if (isOffline()) {
+      await guardarEnCola(registros)
+      setGuardando(false)
+      return
+    }
     try {
-      const registros = matriz.estudiantes.map((e) => ({ solicitud_id: e.solicitud_id, estado: hoyEstados[e.solicitud_id] }))
       const resultado = await guardarAsistencia(grupoId, matriz.hoy, registros)
+      // Lo guardado en la API reemplaza la toma pendiente de la cola, si había una.
+      await removeFromQueue(queueId(usuarioId, grupoId, matriz.hoy)).catch(() => {})
+      setPendiente(null)
       toast.success(
         'Asistencia guardada',
         `${resultado.guardados} estudiante${resultado.guardados === 1 ? '' : 's'} · ${formatoLargo.format(fechaLocal(matriz.hoy))}.`,
       )
-      // Lo enviado pasa a ser lo guardado.
-      setEstado((current) => ({
-        ...current,
-        matriz: {
-          ...current.matriz,
-          estudiantes: current.matriz.estudiantes.map((e) => ({
-            ...e,
-            asistencias: { ...e.asistencias, [current.matriz.hoy]: hoyEstados[e.solicitud_id] },
-          })),
-        },
-      }))
+      // Lo enviado pasa a ser lo guardado (también en la copia local para trabajar sin conexión).
+      const actualizada = {
+        ...matriz,
+        estudiantes: matriz.estudiantes.map((e) => ({
+          ...e,
+          asistencias: { ...e.asistencias, [matriz.hoy]: hoyEstados[e.solicitud_id] },
+        })),
+      }
+      setEstado((current) => ({ ...current, matriz: actualizada }))
+      saveSnapshot(snapshotMatriz(usuarioId, grupoId), actualizada)
     } catch (error) {
+      // El navegador dice "online" pero la API no respondió: también se guarda en la cola.
+      if (isNetworkError(error)) {
+        await guardarEnCola(registros)
+        return
+      }
       toast.error('No fue posible guardar la asistencia', getApiErrorMessage(error))
       // 400 por estudiantes que ya no están o por cambio de día: se recarga la matriz.
       if (error.response?.status === 400) setReloadKey((key) => key + 1)
@@ -152,7 +297,12 @@ export default function MatrizAsistencia({ grupoId, onVolver }) {
           {matriz && (
             <p className="mt-2 text-[15px] text-slate-600">
               Hoy, {formatoLargo.format(fechaLocal(matriz.hoy))}
-              {matriz.es_dia_de_clase && (hoyGuardado ? ' · asistencia registrada' : ' · asistencia pendiente')}
+              {matriz.es_dia_de_clase &&
+                (pendiente
+                  ? ' · guardada en este equipo, pendiente de sincronizar'
+                  : hoyGuardado
+                    ? ' · asistencia registrada'
+                    : ' · asistencia pendiente')}
             </p>
           )}
         </div>
@@ -165,13 +315,31 @@ export default function MatrizAsistencia({ grupoId, onVolver }) {
           >
             Actualizar
           </Button>
+          {pendientesEnCola > 0 && (
+            <span
+              role="status"
+              title={`${pendientesEnCola} asistencia${pendientesEnCola === 1 ? '' : 's'} guardada${pendientesEnCola === 1 ? '' : 's'} en este equipo, pendiente${pendientesEnCola === 1 ? '' : 's'} de sincronizar`}
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-amber-50 px-3 text-sm font-semibold text-amber-800 ring-1 ring-inset ring-amber-200"
+            >
+              <CloudUpload aria-hidden="true" className="size-[18px]" />
+              <span className="tabular-nums">{pendientesEnCola}</span>
+              <span className="sr-only">asistencias pendientes de sincronizar</span>
+            </span>
+          )}
           <Button
             icon={Save}
+            requiresNetwork={false}
             onClick={handleGuardar}
             loading={guardando}
             loadingText="Guardando…"
             disabled={!puedeGuardar || estado.status !== 'ready'}
-            title={puedeGuardar ? undefined : 'Hoy no hay clase programada para este grupo'}
+            title={
+              puedeGuardar
+                ? undefined
+                : matriz?.desactualizada
+                  ? 'La copia guardada en este equipo no es de hoy: conéctese para tomar la asistencia'
+                  : 'Hoy no hay clase programada para este grupo'
+            }
           >
             Guardar Asistencia de Hoy
           </Button>
@@ -199,7 +367,19 @@ export default function MatrizAsistencia({ grupoId, onVolver }) {
 
       {matriz && (
         <>
-          {!matriz.es_dia_de_clase && (
+          {estado.origen === 'local' && (
+            <div className="flex items-start gap-3 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700 ring-1 ring-slate-200">
+              <HardDrive aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-slate-500" />
+              <p>
+                Sin conexión: se muestra la copia guardada en este equipo el {formatDateTime(estado.copiaDe)}.
+                {matriz.desactualizada
+                  ? ' La copia no es de hoy, así que no se puede tomar la asistencia sin conexión. Abra este grupo una vez con internet cada día de clase para poder trabajar sin conexión.'
+                  : ' La asistencia que guarde quedará en este equipo y se sincronizará al volver la red.'}
+              </p>
+            </div>
+          )}
+
+          {!matriz.es_dia_de_clase && !matriz.desactualizada && (
             <div className="flex items-start gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
               <CalendarX2 aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-amber-500" />
               <p>

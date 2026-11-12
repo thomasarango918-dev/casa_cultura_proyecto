@@ -40,11 +40,16 @@ apiClient.interceptors.request.use((config) => {
  * Interceptor de respuesta: ante un 401 emite SESSION_EXPIRED_EVENT para que la
  * aplicación cierre la sesión y vuelva al login. La opción `skipAuthRedirect: true`
  * lo evita en peticiones donde un 401 es una respuesta esperada (credenciales erradas).
+ *
+ * Fase 8 (PWA): la sesión se cierra SOLO si el servidor respondió estrictamente 401.
+ * Un "Network Error", un timeout (ECONNABORTED), una petición cancelada o cualquier otro
+ * código NO borran el token: sin conexión el usuario sigue trabajando (asistencias offline).
  */
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !error.config?.skipAuthRedirect) {
+    const status = error?.response ? error.response.status : null
+    if (status === 401 && !error.config?.skipAuthRedirect) {
       window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
     }
     return Promise.reject(error)
@@ -65,6 +70,10 @@ export function getApiErrorMessage(error, fallback = 'No fue posible completar l
   if (error?.code === 'ECONNABORTED') {
     return 'El servidor tardó demasiado en responder. Intente de nuevo.'
   }
+  // Fase 8: el navegador reporta que no hay red (modo offline de la PWA).
+  if (!error?.response && isOffline()) {
+    return 'Sin conexión a internet. Esta acción requiere conexión; intente de nuevo cuando vuelva la red.'
+  }
   // Sin respuesta: la API está apagada, la URL es incorrecta o no hay internet.
   if (!error?.response) {
     return 'No fue posible conectar con el servidor. Verifique su conexión a internet o que la API esté en ejecución.'
@@ -74,6 +83,19 @@ export function getApiErrorMessage(error, fallback = 'No fue posible completar l
   if (typeof data?.detail === 'string' && data.detail.trim()) return data.detail
   if (status >= 500) return 'El servidor presentó un error. Intente nuevamente en unos minutos.'
   return fallback
+}
+
+/** Indica si el navegador reporta que no hay conexión de red (`navigator.onLine === false`). */
+export function isOffline() {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
+/**
+ * Indica si el error es de red: la petición no obtuvo respuesta (sin internet, API apagada o
+ * timeout). Una respuesta HTTP (400, 401, 500...) NO es un error de red.
+ */
+export function isNetworkError(error) {
+  return Boolean(error) && !axios.isCancel(error) && !error.response
 }
 
 export default apiClient

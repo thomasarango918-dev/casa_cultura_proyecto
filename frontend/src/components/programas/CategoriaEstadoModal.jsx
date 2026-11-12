@@ -74,7 +74,7 @@ export default function CategoriaEstadoModal({ categoria, onClose, onSaved }) {
           <Button variant="secondary" onClick={onClose} disabled={enviando}>
             Cancelar
           </Button>
-          <Button icon={Save} onClick={guardar} loading={enviando} loadingText="Guardando…" disabled={!hayCambios}>
+          <Button icon={Save} onClick={guardar} loading={enviando} loadingText="Guardando…" disabled={!hayCambios} requiresNetwork>
             Guardar Cambios
           </Button>
         </>

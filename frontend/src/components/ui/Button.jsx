@@ -10,8 +10,11 @@
  * @param {boolean} [props.loading] Muestra el estado de carga.
  * @param {string} [props.loadingText] Texto alternativo durante la carga.
  * @param {React.ComponentType} [props.icon] Icono opcional a la izquierda del texto.
+ * @param {boolean} [props.requiresNetwork] Fase 8: el botón se deshabilita sin conexión (fuera de
+ *   Asistencias). Por defecto, true en los botones `type="submit"` (Guardar, Crear...) y false en el resto.
  */
 import { LoaderCircle } from 'lucide-react'
+import { OFFLINE_BLOCK_MESSAGE, useOfflineBlock } from '../../context/OfflineBlockContext'
 
 /** Clases de color por variante. */
 const VARIANTS = {
@@ -38,14 +41,19 @@ export default function Button({
   className = '',
   disabled,
   type = 'button',
+  requiresNetwork,
+  title,
   ...props
 }) {
+  const offlineBlocked = useOfflineBlock() && (requiresNetwork ?? type === 'submit')
+
   return (
     <button
       type={type}
-      disabled={disabled || loading}
+      disabled={disabled || loading || offlineBlocked}
       aria-busy={loading || undefined}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors duration-150 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      title={offlineBlocked ? OFFLINE_BLOCK_MESSAGE : title}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors duration-150 ${VARIANTS[variant]} ${SIZES[size]} ${offlineBlocked ? 'cursor-not-allowed' : ''} ${className}`}
       {...props}
     >
       {loading ? (

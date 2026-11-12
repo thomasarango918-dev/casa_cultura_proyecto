@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import Button from '../ui/Button'
 import EstadoBadge from './EstadoBadge'
+import { OFFLINE_BLOCK_MESSAGE, useOfflineBlock } from '../../context/OfflineBlockContext'
 import { useToast } from '../../context/ToastContext'
 import { getApiErrorMessage } from '../../services/apiClient'
 import { abrirDocumentoEnPestana } from '../../services/documentViewer'
@@ -63,6 +64,8 @@ export default function EvaluacionModal({ solicitudId, onClose, onEvaluated }) {
   const [justificacion, setJustificacion] = useState('')
   const [justificacionError, setJustificacionError] = useState('')
   const [enviando, setEnviando] = useState(null) // 'APROBADO' | 'RECHAZADO' | null
+  // Fase 8: sin conexión no se aprueba ni se rechaza.
+  const sinRed = useOfflineBlock()
 
   const dialogRef = useRef(null)
   const textareaRef = useRef(null)
@@ -417,7 +420,8 @@ export default function EvaluacionModal({ solicitudId, onClose, onEvaluated }) {
             <button
               type="button"
               onClick={() => evaluar('RECHAZADO')}
-              disabled={!todosAbiertos || Boolean(enviando)}
+              disabled={!todosAbiertos || Boolean(enviando) || sinRed}
+              title={sinRed ? OFFLINE_BLOCK_MESSAGE : undefined}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-rose-700 shadow-xs ring-1 ring-inset ring-rose-200 transition-colors hover:bg-rose-50 disabled:bg-white disabled:text-slate-400 disabled:ring-slate-200"
             >
               {enviando === 'RECHAZADO' ? (
@@ -430,7 +434,8 @@ export default function EvaluacionModal({ solicitudId, onClose, onEvaluated }) {
             <button
               type="button"
               onClick={() => evaluar('APROBADO')}
-              disabled={!todosAbiertos || Boolean(enviando)}
+              disabled={!todosAbiertos || Boolean(enviando) || sinRed}
+              title={sinRed ? OFFLINE_BLOCK_MESSAGE : undefined}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-pradera-600 px-4 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-pradera-700 disabled:bg-pradera-200"
             >
               {enviando === 'APROBADO' ? (

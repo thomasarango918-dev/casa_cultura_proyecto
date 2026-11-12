@@ -11,12 +11,15 @@
  * @param {'primary'|'danger'|'success'} [props.tone] Color del botón de confirmar.
  * @param {React.ComponentType} [props.icon] Icono del encabezado.
  * @param {boolean} [props.loading] La acción está en curso.
+ * @param {boolean} [props.requiresNetwork] Fase 8: sin conexión (fuera de Asistencias) el botón de
+ *   confirmar se deshabilita. Por defecto true; false para confirmaciones que no llaman a la API.
  * @param {() => void} props.onConfirm Ejecuta la acción.
  * @param {() => void} props.onCancel Cierra sin hacer cambios.
  */
 import { CircleHelp, LoaderCircle } from 'lucide-react'
 import Button from './Button'
 import Modal from './Modal'
+import { OFFLINE_BLOCK_MESSAGE, useOfflineBlock } from '../../context/OfflineBlockContext'
 
 const TONES = {
   primary: {
@@ -40,10 +43,13 @@ export default function ConfirmDialog({
   tone = 'primary',
   icon: Icon = CircleHelp,
   loading = false,
+  requiresNetwork = true,
   onConfirm,
   onCancel,
 }) {
   const styles = TONES[tone] ?? TONES.primary
+  // Fase 8: sin conexión (fuera de Asistencias) no se confirma ninguna acción que cambie datos.
+  const offlineBlocked = useOfflineBlock() && requiresNetwork
 
   return (
     <Modal
@@ -71,9 +77,10 @@ export default function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={loading}
+            disabled={loading || offlineBlocked}
             aria-busy={loading || undefined}
-            className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold shadow-xs transition-colors ${styles.button}`}
+            title={offlineBlocked ? OFFLINE_BLOCK_MESSAGE : undefined}
+            className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold shadow-xs transition-colors ${styles.button} ${offlineBlocked ? 'cursor-not-allowed' : ''}`}
           >
             {loading && <LoaderCircle aria-hidden="true" className="size-[18px] animate-spin" />}
             {confirmLabel}

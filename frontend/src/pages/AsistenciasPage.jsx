@@ -5,19 +5,51 @@
  *   ?grupo=ID    Matriz de asistencia del grupo (MatrizAsistencia).
  *
  * El grupo seleccionado queda en la URL: recargar la página no pierde la vista.
+ *
+ * Fase 8 (sin conexión):
+ *   - El listado se guarda en IndexedDB (cached_snapshots) y se muestra desde allí si no hay red.
+ *   - Con red, se descargan en segundo plano las matrices de los grupos que aún no tienen copia
+ *     de hoy: así la asistencia se puede tomar sin conexión el resto del día.
  */
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ClipboardCheck, LoaderCircle, RefreshCw, TriangleAlert, UsersRound } from 'lucide-react'
+import { ClipboardCheck, HardDrive, LoaderCircle, RefreshCw, TriangleAlert, UsersRound } from 'lucide-react'
 import MatrizAsistencia from '../components/asistencias/MatrizAsistencia'
 import AccessDenied from '../components/ui/AccessDenied'
 import Button from '../components/ui/Button'
-import { getApiErrorMessage } from '../services/apiClient'
+import { useAuth } from '../context/AuthContext'
+import { getApiErrorMessage, isNetworkError } from '../services/apiClient'
+import { getMatrizAsistencia } from '../services/asistenciasService'
 import { listGrupos } from '../services/gruposService'
+import { formatDateTime, hoyColombia } from '../utils/formatters'
 import { resumenHorario } from '../utils/horarios'
+import { getSnapshot, saveSnapshot, snapshotGrupos, snapshotMatriz } from '../utils/offlineSync'
+
+/** Máximo de matrices que se descargan en segundo plano por visita al listado. */
+const MAX_PRECARGA = 30
+
+/** Descarga y guarda la matriz de los grupos que no tienen copia de hoy (en serie, sin bloquear la vista). */
+async function precargarMatrices(usuarioId, grupos, cancelado) {
+  const hoy = hoyColombia()
+  const candidatos = grupos.filter((g) => g.estudiantes_activos > 0 && g.horarios?.length).slice(0, MAX_PRECARGA)
+  for (const grupo of candidatos) {
+    if (cancelado()) return
+    const copia = await getSnapshot(snapshotMatriz(usuarioId, grupo.id))
+    if (copia?.data?.hoy === hoy) continue
+    try {
+      await saveSnapshot(snapshotMatriz(usuarioId, grupo.id), await getMatrizAsistencia(grupo.id))
+    } catch {
+      return // sin red o sin permiso: se intenta en la próxima visita
+    }
+  }
+}
 
 function ListadoGrupos({ onSeleccionar }) {
+  const { user } = useAuth()
+  const usuarioId = user?.id
   const [grupos, setGrupos] = useState([])
+  // Fecha de la copia local cuando el listado se muestra sin conexión; null si viene de la API.
+  const [copiaLocal, setCopiaLocal] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | error | forbidden
   const [errorMessage, setErrorMessage] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
@@ -29,13 +61,27 @@ function ListadoGrupos({ onSeleccionar }) {
       .then((data) => {
         if (cancelado) return
         setGrupos(data)
+        setCopiaLocal(null)
         setStatus('ready')
+        saveSnapshot(snapshotGrupos(usuarioId), data)
+        precargarMatrices(usuarioId, data, () => cancelado)
       })
-      .catch((error) => {
+      .catch(async (error) => {
         if (cancelado) return
         if (error.response?.status === 403) {
           setStatus('forbidden')
           return
+        }
+        // Sin red: se muestra la última copia guardada en este equipo.
+        if (isNetworkError(error)) {
+          const copia = await getSnapshot(snapshotGrupos(usuarioId))
+          if (cancelado) return
+          if (copia) {
+            setGrupos(copia.data)
+            setCopiaLocal(copia.guardado_en)
+            setStatus('ready')
+            return
+          }
         }
         setErrorMessage(getApiErrorMessage(error, 'No fue posible cargar los grupos.'))
         setStatus('error')
@@ -43,7 +89,7 @@ function ListadoGrupos({ onSeleccionar }) {
     return () => {
       cancelado = true
     }
-  }, [reloadKey])
+  }, [reloadKey, usuarioId])
 
   if (status === 'forbidden') return <AccessDenied />
 
@@ -67,6 +113,13 @@ function ListadoGrupos({ onSeleccionar }) {
           Actualizar
         </Button>
       </section>
+
+      {status === 'ready' && copiaLocal && (
+        <div className="flex items-start gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
+          <HardDrive aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-amber-500" />
+          <p>Sin conexión: se muestra la copia guardada en este equipo el {formatDateTime(copiaLocal)}.</p>
+        </div>
+      )}
 
       {status === 'loading' && (
         <div role="status" className="flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-16 text-sm text-slate-500 shadow-panel ring-1 ring-slate-200/80">

@@ -122,7 +122,7 @@ export default function AsignarEstudiantesModal({ grupo, onClose, onAssigned }) 
           <Button variant="secondary" onClick={onClose} disabled={enviando}>
             Cancelar
           </Button>
-          <Button icon={UserPlus} onClick={handleAsignar} loading={enviando} loadingText="Asignando…" disabled={seleccion.size === 0}>
+          <Button icon={UserPlus} onClick={handleAsignar} loading={enviando} loadingText="Asignando…" disabled={seleccion.size === 0} requiresNetwork>
             Asignar Seleccionados{seleccion.size > 0 ? ` (${seleccion.size})` : ''}
           </Button>
         </>

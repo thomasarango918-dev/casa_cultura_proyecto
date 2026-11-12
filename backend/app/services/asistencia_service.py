@@ -8,6 +8,12 @@ Permisos (el servicio recibe al usuario autenticado):
 
 Regla crítica: solo se guarda la asistencia de HOY (fecha de Colombia) y solo si hoy
 es una sesión del grupo (día de su horario y no festivo). Cualquier otra fecha -> 400.
+
+Excepción de la Fase 8 (sincronización offline, `sincronizacion_offline=True`): la toma que el
+Maestro guardó sin conexión puede llegar días después. Se acepta una fecha pasada de hasta
+DIAS_SINCRONIZACION_OFFLINE días si fue una sesión real del grupo (horario, sin festivos, después
+de su creación). Los estudiantes que ya no están en el grupo se omiten en lugar de rechazar toda la
+toma. Las fechas futuras siempre se rechazan.
 """
 
 import logging
@@ -29,6 +35,9 @@ from app.utils.exceptions import DatosInvalidosError, PermisoDenegadoError, Recu
 from app.utils.festivos_colombia import hoy_colombia, nombre_festivo
 
 logger = logging.getLogger("casacultura.asistencias")
+
+# Fase 8: antigüedad máxima (en días) de una toma offline que todavía se puede sincronizar.
+DIAS_SINCRONIZACION_OFFLINE = 7
 
 
 class AsistenciaService:
@@ -88,24 +97,40 @@ class AsistenciaService:
     # ---- Registro -----------------------------------------------------------------------
     def guardar(self, grupo_id: int, data: GuardarAsistenciaRequest) -> AsistenciaGuardadaOut:
         hoy = hoy_colombia()
-        if data.fecha_clase != hoy:
-            raise DatosInvalidosError(
-                f"Solo se puede registrar o modificar la asistencia del día de hoy ({hoy:%d/%m/%Y}). "
-                "Las fechas pasadas y futuras son de solo lectura."
-            )
+        fecha = data.fecha_clase
+        offline = data.sincronizacion_offline
+        if fecha != hoy:
+            if not offline or fecha > hoy:
+                raise DatosInvalidosError(
+                    f"Solo se puede registrar o modificar la asistencia del día de hoy ({hoy:%d/%m/%Y}). "
+                    "Las fechas pasadas y futuras son de solo lectura."
+                )
+            if (hoy - fecha).days > DIAS_SINCRONIZACION_OFFLINE:
+                raise DatosInvalidosError(
+                    f"La asistencia del {fecha:%d/%m/%Y} se guardó sin conexión hace más de "
+                    f"{DIAS_SINCRONIZACION_OFFLINE} días y ya no se puede sincronizar."
+                )
 
         # El bloqueo serializa el guardado con la eliminación del grupo y la asignación de estudiantes.
         grupo = self._grupo(grupo_id, bloquear=True)
-        if (festivo := nombre_festivo(hoy)) is not None:
+        if fecha == hoy:
+            if (festivo := nombre_festivo(hoy)) is not None:
+                self._repository.rollback()
+                raise DatosInvalidosError(f"Hoy es festivo ({festivo}): no hay clase.")
+            if hoy.isoweekday() not in {h.dia_semana for h in grupo.horarios} or hoy < grupo.fecha_creacion.date():
+                self._repository.rollback()
+                raise DatosInvalidosError("Hoy no hay clase programada en el horario de este grupo.")
+        elif fecha not in sesiones_de_clase(grupo).sesiones:
+            # Sincronización offline de un día anterior: debe haber sido una sesión real del grupo.
             self._repository.rollback()
-            raise DatosInvalidosError(f"Hoy es festivo ({festivo}): no hay clase.")
-        if hoy.isoweekday() not in {h.dia_semana for h in grupo.horarios} or hoy < grupo.fecha_creacion.date():
-            self._repository.rollback()
-            raise DatosInvalidosError("Hoy no hay clase programada en el horario de este grupo.")
+            raise DatosInvalidosError(
+                f"El {fecha:%d/%m/%Y} no fue día de clase de este grupo (festivo o fuera de su horario)."
+            )
 
         activos = {vinculo.solicitud_id for vinculo in self._grupos.estudiantes_del_grupo(grupo.id)}
-        ajenos = sum(1 for registro in data.registros if registro.solicitud_id not in activos)
-        if ajenos:
+        registros = [r for r in data.registros if r.solicitud_id in activos]
+        ajenos = len(data.registros) - len(registros)
+        if ajenos and not offline:
             self._repository.rollback()
             plural = "" if ajenos == 1 else "n"
             raise DatosInvalidosError(
@@ -113,8 +138,11 @@ class AsistenciaService:
             )
 
         guardados = self._repository.guardar(
-            grupo.id, hoy, ((r.solicitud_id, r.estado) for r in data.registros), self._usuario.id
+            grupo.id, fecha, ((r.solicitud_id, r.estado) for r in registros), self._usuario.id
         )
         self._repository.commit()
-        logger.info("Asistencia guardada: grupo=%s fecha=%s registros=%s", grupo.id, hoy, guardados)
-        return AsistenciaGuardadaOut(fecha_clase=hoy, guardados=guardados)
+        logger.info(
+            "Asistencia guardada: grupo=%s fecha=%s registros=%s omitidos=%s offline=%s",
+            grupo.id, fecha, guardados, ajenos, offline,
+        )
+        return AsistenciaGuardadaOut(fecha_clase=fecha, guardados=guardados, omitidos=ajenos)

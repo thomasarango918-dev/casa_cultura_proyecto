@@ -28,6 +28,9 @@ def _validar_registros(value: list[RegistroAsistenciaIn]) -> list[RegistroAsiste
 class GuardarAsistenciaRequest(BaseModel):
     fecha_clase: date
     registros: Annotated[list[RegistroAsistenciaIn], AfterValidator(_validar_registros)]
+    # Fase 8: True cuando el frontend envía una toma guardada sin conexión (cola de IndexedDB).
+    # Permite una fecha pasada reciente que haya sido sesión del grupo (ver AsistenciaService.guardar).
+    sincronizacion_offline: bool = False
 
 
 # ---- Salidas -------------------------------------------------------------------
@@ -55,3 +58,5 @@ class MatrizAsistenciaOut(BaseModel):
 class AsistenciaGuardadaOut(BaseModel):
     fecha_clase: date
     guardados: int
+    # Fase 8: estudiantes de una sincronización offline que ya no estaban en el grupo (no se guardan).
+    omitidos: int = 0
