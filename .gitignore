@@ -1,0 +1,39 @@
+# =============================================================================
+#  .gitignore raíz - Casa de la Cultura
+#  Los scripts SQL (database/*.sql) SÍ se versionan: no agregar *.sql ni database/.
+# =============================================================================
+
+# ---- Secretos y variables de entorno ----------------------------------------
+.env
+.env.local
+.env.*
+!.env.example
+
+# ---- Python -----------------------------------------------------------------
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Node / Vite ------------------------------------------------------------
+node_modules/
+dist/
+dev-dist/
+build/
+*.log
+npm-debug.log*
+
+# ---- Documentos subidos por los aspirantes (datos personales) ---------------
+uploads/
+
+# ---- Sistema operativo y editores -------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json

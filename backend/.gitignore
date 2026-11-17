@@ -3,6 +3,9 @@ venv/
 __pycache__/
 *.py[cod]
 .env
+.env.local
+.env.*
+!.env.example
 .pytest_cache/
 # Documentos subidos por los aspirantes (datos personales: nunca se versionan).
 uploads/

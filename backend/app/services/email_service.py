@@ -41,6 +41,19 @@ _SLATE_500 = "#64748b"
 # --------------------------------------------------------------------------- #
 # Envío
 # --------------------------------------------------------------------------- #
+def _resend_configurado() -> bool:
+    """True solo si RESEND_API_KEY tiene una clave real.
+
+    Los valores de ejemplo del .env ("re_PON_AQUI_TU_API_KEY", "re_xxxx...") cuentan
+    como vacíos: así la API usa SMTP o el modo consola en lugar de llamar a Resend
+    con una clave inválida.
+    """
+    clave = settings.RESEND_API_KEY.strip()
+    if not clave or "PON_AQUI" in clave.upper():
+        return False
+    return set(clave.removeprefix("re_").lower()) != {"x"}
+
+
 def _enviar_con_resend(destinatario: str, asunto: str, html: str) -> None:
     """Envía el correo con la API de Resend."""
     import resend  # Se importa aquí para que la API arranque aunque la librería no esté instalada.
@@ -83,7 +96,7 @@ def enviar_correo(destinatario: str, asunto: str, html: str) -> bool:
         logger.warning("Correo '%s' no enviado: no hay destinatario.", asunto)
         return False
     try:
-        if settings.RESEND_API_KEY:
+        if _resend_configurado():
             _enviar_con_resend(destinatario, asunto, html)
         elif settings.SMTP_HOST:
             _enviar_con_smtp(destinatario, asunto, html)
