@@ -40,7 +40,19 @@ export async function actualizarPrograma(id, programa) {
   return data
 }
 
-/** La API responde 400 si el programa tiene estudiantes activos o historial. */
-export async function eliminarPrograma(id) {
-  await apiClient.delete(`/admin/programas/${id}`)
+/** Fase 10: reemplaza la eliminación. Deshabilitado = oculto en /inscripcion, conserva su historial. */
+export async function cambiarEstadoPrograma(id, activo) {
+  const { data } = await apiClient.patch(`/admin/programas/${id}/estado`, { activo })
+  return data
+}
+
+/** Fase 9: renombra la categoría. 400 si el nombre ya existe (sin distinguir mayúsculas). */
+export async function actualizarCategoria(id, categoria) {
+  const { data } = await apiClient.put(`/admin/categorias/${id}`, categoria)
+  return data
+}
+
+/** Fase 9: 400 si la categoría tiene programas asociados. */
+export async function eliminarCategoria(id) {
+  await apiClient.delete(`/admin/categorias/${id}`)
 }

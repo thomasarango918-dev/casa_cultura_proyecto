@@ -252,6 +252,9 @@ export default function EvaluacionModal({ solicitudId, onClose, onEvaluated }) {
                       </span>
                     )}
                   </Dato>
+                  {/* Fase 9: NULL en solicitudes radicadas antes del ajuste (Dato muestra la raya). */}
+                  <Dato label="Sexo">{detalle.sexo}</Dato>
+                  <Dato label="Zona de residencia">{detalle.zona_residencia}</Dato>
                   <Dato label="Programa">{detalle.programa}</Dato>
                   <Dato label="Fecha de radicación">{formatDateTime(detalle.fecha_radicacion)}</Dato>
                 </dl>

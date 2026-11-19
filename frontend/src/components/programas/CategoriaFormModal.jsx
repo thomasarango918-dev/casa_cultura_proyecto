@@ -1,18 +1,20 @@
 /**
- * Modal "Crear categoría": nombre y descripción.
+ * Modal "Crear categoría" / "Editar categoría" (Fase 9): nombre y descripción.
  *
  * @param {object} props
+ * @param {object} [props.categoria] Si viene, el modal edita esa categoría (PUT).
  * @param {() => void} props.onClose
- * @param {(categoria: object) => void} props.onCreated Recibe la categoría que devolvió la API.
+ * @param {(categoria: object) => void} [props.onCreated] Recibe la categoría creada.
+ * @param {(categoria: object) => void} [props.onUpdated] Recibe la categoría editada.
  */
 import { useRef, useState } from 'react'
-import { CircleAlert, FolderPlus, Tag } from 'lucide-react'
+import { CircleAlert, FolderPlus, Save, Tag } from 'lucide-react'
 import Button from '../ui/Button'
 import Modal from '../ui/Modal'
 import TextField from '../ui/TextField'
 import { useToast } from '../../context/ToastContext'
 import { getApiErrorMessage, getApiFieldErrors } from '../../services/apiClient'
-import { crearCategoria } from '../../services/programasService'
+import { actualizarCategoria, crearCategoria } from '../../services/programasService'
 import {
   CATALOGO_DESCRIPCION_MAX,
   CATALOGO_NOMBRE_MAX,
@@ -20,10 +22,11 @@ import {
   validarNombreCatalogo,
 } from '../../utils/validators'
 
-export default function CategoriaFormModal({ onClose, onCreated }) {
+export default function CategoriaFormModal({ categoria, onClose, onCreated, onUpdated }) {
   const toast = useToast()
-  const [nombre, setNombre] = useState('')
-  const [descripcion, setDescripcion] = useState('')
+  const editando = Boolean(categoria)
+  const [nombre, setNombre] = useState(categoria?.nombre ?? '')
+  const [descripcion, setDescripcion] = useState(categoria?.descripcion ?? '')
   const [errors, setErrors] = useState({})
   const [enviando, setEnviando] = useState(false)
   const nombreRef = useRef(null)
@@ -38,10 +41,17 @@ export default function CategoriaFormModal({ onClose, onCreated }) {
     }
 
     setEnviando(true)
+    const datos = { nombre: limpiarEspacios(nombre), descripcion: descripcion.trim() || null }
     try {
-      const creada = await crearCategoria({ nombre: limpiarEspacios(nombre), descripcion: descripcion.trim() || null })
-      toast.success('Categoría creada', `«${creada.nombre}» ya puede recibir programas.`)
-      onCreated(creada)
+      if (editando) {
+        const editada = await actualizarCategoria(categoria.id, datos)
+        toast.success('Categoría actualizada', `Ahora se llama «${editada.nombre}».`)
+        onUpdated?.(editada)
+      } else {
+        const creada = await crearCategoria(datos)
+        toast.success('Categoría creada', `«${creada.nombre}» ya puede recibir programas.`)
+        onCreated?.(creada)
+      }
       onClose()
     } catch (error) {
       const message = getApiErrorMessage(error)
@@ -50,7 +60,7 @@ export default function CategoriaFormModal({ onClose, onCreated }) {
       if (error.response?.status === 400) fieldErrors.nombre = message
       setErrors(fieldErrors)
       if (fieldErrors.nombre) nombreRef.current?.focus()
-      toast.error('No fue posible crear la categoría', message)
+      toast.error(editando ? 'No fue posible guardar la categoría' : 'No fue posible crear la categoría', message)
     } finally {
       setEnviando(false)
     }
@@ -66,7 +76,7 @@ export default function CategoriaFormModal({ onClose, onCreated }) {
         <>
           <p className="text-xs font-medium text-slate-500">Programas y categorías</p>
           <h2 id="titulo-categoria" className="mt-0.5 text-lg font-semibold text-pizarra-950">
-            Crear categoría
+            {editando ? 'Editar categoría' : 'Crear categoría'}
           </h2>
         </>
       }
@@ -75,8 +85,14 @@ export default function CategoriaFormModal({ onClose, onCreated }) {
           <Button variant="secondary" onClick={onClose} disabled={enviando}>
             Cancelar
           </Button>
-          <Button type="submit" form="form-categoria" icon={FolderPlus} loading={enviando} loadingText="Creando…">
-            Crear categoría
+          <Button
+            type="submit"
+            form="form-categoria"
+            icon={editando ? Save : FolderPlus}
+            loading={enviando}
+            loadingText={editando ? 'Guardando…' : 'Creando…'}
+          >
+            {editando ? 'Guardar cambios' : 'Crear categoría'}
           </Button>
         </>
       }

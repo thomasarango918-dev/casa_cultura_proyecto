@@ -29,6 +29,10 @@ ESTADOS_SOLICITUD = (ESTADO_PENDIENTE, ESTADO_APROBADO, ESTADO_RECHAZADO)
 # Edad desde la cual el aspirante no necesita acudiente.
 MAYORIA_DE_EDAD = 18
 
+# Fase 9: opciones válidas (CHECK ck_solicitud_sexo y ck_solicitud_zona_residencia).
+SEXOS = ("Hombre", "Mujer", "Prefiero no decirlo")
+ZONAS_RESIDENCIA = ("Zona urbana", "Zona rural", "Corregimiento")
+
 
 class SolicitudInscripcion(Base):
     """Solicitud radicada por un aspirante desde el formulario público."""
@@ -71,6 +75,9 @@ class SolicitudInscripcion(Base):
     )
     # Fase 3: periodo académico vigente al radicar (NULL en solicitudes anteriores).
     periodo: Mapped[str | None] = mapped_column("periodo", String(20), nullable=True)
+    # Fase 9: NULL solo en solicitudes anteriores; la API los exige en las nuevas.
+    sexo: Mapped[str | None] = mapped_column("sexo", String(30), nullable=True)
+    zona_residencia: Mapped[str | None] = mapped_column("zona_residencia", String(30), nullable=True)
 
     # El programa se necesita en todos los listados: se carga en la misma consulta.
     programa: Mapped[Programa] = relationship(lazy="joined")

@@ -42,9 +42,17 @@ class ProgramaRepository:
             stmt = stmt.with_for_update()
         return self._db.scalar(stmt)
 
-    def categoria_nombre_en_uso(self, nombre: str) -> bool:
-        stmt = select(Categoria.id).where(func.lower(Categoria.nombre) == nombre.lower()).limit(1)
-        return self._db.scalar(stmt) is not None
+    def categoria_nombre_en_uso(self, nombre: str, excluir_id: int | None = None) -> bool:
+        stmt = select(Categoria.id).where(func.lower(Categoria.nombre) == nombre.lower())
+        # Fase 9: al renombrar, la propia categoría no cuenta como duplicado.
+        if excluir_id is not None:
+            stmt = stmt.where(Categoria.id != excluir_id)
+        return self._db.scalar(stmt.limit(1)) is not None
+
+    def total_programas(self, categoria_id: int) -> int:
+        """Programas de la categoría, activos o no. Se consulta después del bloqueo, no desde la relación cargada."""
+        stmt = select(func.count()).select_from(Programa).where(Programa.categoria_id == categoria_id)
+        return self._db.scalar(stmt) or 0
 
     # ---- Programas -------------------------------------------------------------
     def list_programas(self, categoria_id: int | None = None) -> list[Programa]:
@@ -104,8 +112,8 @@ class ProgramaRepository:
     def add(self, entidad: Categoria | Programa) -> None:
         self._db.add(entidad)
 
-    def delete(self, programa: Programa) -> None:
-        self._db.delete(programa)
+    def delete(self, entidad: Categoria | Programa) -> None:
+        self._db.delete(entidad)
 
     def flush(self) -> None:
         self._db.flush()

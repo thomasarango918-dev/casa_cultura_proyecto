@@ -48,10 +48,12 @@ class Programa(Base):
     programa: Mapped[str] = mapped_column("programa", String(100), unique=True, nullable=False)
     # NULL solo si el script de la Fase 5 encontró programas sin categoría conocida.
     categoria_id: Mapped[int | None] = mapped_column("categoria_id", ForeignKey("tbl_categorias.id"), nullable=True)
+    # Fase 10: FALSE = oculto en /inscripcion; no se borra para conservar solicitudes, grupos y asistencias.
+    activo: Mapped[bool] = mapped_column("activo", Boolean, nullable=False, default=True, server_default=true())
 
     # Carga diferida: Programa viaja "joined" en cada solicitud y no debe arrastrar más tablas.
     categoria: Mapped[Categoria | None] = relationship(back_populates="programas")
     maestros: Mapped[list[Usuario]] = relationship(secondary=programa_maestro, order_by=Usuario.nombre_com)
 
     def __repr__(self) -> str:
-        return f"<Programa id={self.id} programa={self.programa!r}>"
+        return f"<Programa id={self.id} programa={self.programa!r} activo={self.activo}>"

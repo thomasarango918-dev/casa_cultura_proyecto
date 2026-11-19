@@ -79,6 +79,8 @@ const STEP_FIELDS = [
     'edad',
     'correo_electronico',
     'telefono',
+    'sexo',
+    'zona_residencia',
     'acudiente_nombre',
     'acudiente_documento',
     'acudiente_telefono',
@@ -96,6 +98,8 @@ const INITIAL_FORM = {
   fecha_nacimiento: '',
   correo_electronico: '',
   telefono: '',
+  sexo: '',
+  zona_residencia: '',
   programa_id: '',
   acudiente_nombre: '',
   acudiente_documento: '',
@@ -116,6 +120,10 @@ const TIPO_DOCUMENTO_LABELS = {
   PPT: 'Permiso por Protección Temporal',
   RC: 'Registro civil de nacimiento',
 }
+
+/** Fase 9: opciones válidas (deben coincidir con los CHECK de tbl_solicitudinscripcion y con el backend). */
+const SEXOS = ['Hombre', 'Mujer', 'Prefiero no decirlo']
+const ZONAS_RESIDENCIA = ['Zona urbana', 'Zona rural', 'Corregimiento']
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_PATTERN = /^\+?[0-9 ()-]{7,20}$/
@@ -172,6 +180,8 @@ function validateStep(step, form, documentos, requisitos) {
     if (telefono && !PHONE_PATTERN.test(telefono)) {
       errors.telefono = 'Use solo números, espacios, guiones o el signo +.'
     }
+    if (!SEXOS.includes(form.sexo)) errors.sexo = 'Seleccione una opción.'
+    if (!ZONAS_RESIDENCIA.includes(form.zona_residencia)) errors.zona_residencia = 'Seleccione su zona de residencia.'
 
     // Datos del acudiente: obligatorios solo para menores de edad.
     if (edad !== null && edad < MAYORIA_DE_EDAD) {
@@ -604,6 +614,8 @@ export default function InscripcionPage() {
       edad: edad ?? '',
       correo_electronico: form.correo_electronico.trim(),
       telefono: form.telefono.trim(),
+      sexo: form.sexo,
+      zona_residencia: form.zona_residencia,
       programa_id: form.programa_id,
     }
     if (esMenor) {
@@ -893,6 +905,37 @@ export default function InscripcionPage() {
                     onChange={handleChange}
                     error={errors.telefono}
                   />
+                  {/* Fase 9: sexo y zona de residencia, obligatorios. */}
+                  <SelectField
+                    id="sexo"
+                    name="sexo"
+                    label="Sexo"
+                    value={form.sexo}
+                    onChange={handleChange}
+                    error={errors.sexo}
+                  >
+                    <option value="">Seleccione…</option>
+                    {SEXOS.map((opcion) => (
+                      <option key={opcion} value={opcion}>
+                        {opcion}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <SelectField
+                    id="zona_residencia"
+                    name="zona_residencia"
+                    label="Zona de residencia"
+                    value={form.zona_residencia}
+                    onChange={handleChange}
+                    error={errors.zona_residencia}
+                  >
+                    <option value="">Seleccione…</option>
+                    {ZONAS_RESIDENCIA.map((opcion) => (
+                      <option key={opcion} value={opcion}>
+                        {opcion}
+                      </option>
+                    ))}
+                  </SelectField>
 
                   {/* Datos del acudiente: solo aparecen (y son obligatorios) si el aspirante es menor de edad. */}
                   {esMenor && (
@@ -1122,6 +1165,14 @@ export default function InscripcionPage() {
                     <div className="min-w-0">
                       <dt className="text-xs text-slate-500">Programa · {categoriaSeleccionada?.nombre}</dt>
                       <dd className="mt-0.5 truncate font-medium text-pizarra-900">{programaSeleccionado?.nombre}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs text-slate-500">Sexo</dt>
+                      <dd className="mt-0.5 truncate font-medium text-pizarra-900">{form.sexo}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs text-slate-500">Zona de residencia</dt>
+                      <dd className="mt-0.5 truncate font-medium text-pizarra-900">{form.zona_residencia}</dd>
                     </div>
                     {esMenor && (
                       <div className="min-w-0 sm:col-span-3">

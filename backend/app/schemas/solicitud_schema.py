@@ -28,6 +28,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 EstadoSolicitud = Literal["PENDIENTE", "APROBADO", "RECHAZADO"]
 
+# Fase 9: deben coincidir con SEXOS y ZONAS_RESIDENCIA de solicitud_model.py.
+Sexo = Literal["Hombre", "Mujer", "Prefiero no decirlo"]
+ZonaResidencia = Literal["Zona urbana", "Zona rural", "Corregimiento"]
+_SEXOS = ("Hombre", "Mujer", "Prefiero no decirlo")
+_ZONAS = ("Zona urbana", "Zona rural", "Corregimiento")
+
 # Criterio de búsqueda del inventario de documentos.
 MetodoBusqueda = Literal["documento", "radicado"]
 
@@ -101,6 +107,9 @@ class SolicitudCreate(BaseModel):
     programa_id: int = Field(..., gt=0)
     fecha_nacimiento: date
     edad: int = Field(..., ge=0, le=EDAD_MAXIMA)
+    # Fase 9: obligatorios. Se validan con mensaje propio (Literal respondería en inglés).
+    sexo: str
+    zona_residencia: str
     # Acudiente: obligatorio solo si el aspirante es menor de edad (ver errores_condicionales).
     acudiente_nombre: str | None = Field(default=None, max_length=150)
     acudiente_documento: str | None = Field(default=None, max_length=20)
@@ -126,6 +135,25 @@ class SolicitudCreate(BaseModel):
         if isinstance(value, str):
             value = " ".join(value.split())
             return value or None
+        return value
+
+    @field_validator("sexo", "zona_residencia", mode="before")
+    @classmethod
+    def _limpiar_opcion(cls, value: object) -> object:
+        return " ".join(value.split()) if isinstance(value, str) else value
+
+    @field_validator("sexo")
+    @classmethod
+    def _validar_sexo(cls, value: str) -> str:
+        if value not in _SEXOS:
+            raise ValueError(f"Seleccione una opción válida: {', '.join(_SEXOS)}.")
+        return value
+
+    @field_validator("zona_residencia")
+    @classmethod
+    def _validar_zona(cls, value: str) -> str:
+        if value not in _ZONAS:
+            raise ValueError(f"Seleccione una zona válida: {', '.join(_ZONAS)}.")
         return value
 
     @field_validator("acudiente_documento")
@@ -294,6 +322,8 @@ class SolicitudDetalle(SolicitudResumen):
     evaluado_por: str | None  # Nombre del funcionario que evaluó.
     fecha_nacimiento: date | None
     acudiente: AcudienteOut | None  # Solo si el aspirante es menor de edad.
+    sexo: Sexo | None  # Fase 9: NULL en solicitudes anteriores.
+    zona_residencia: ZonaResidencia | None
     documentos: list[DocumentoOut]
 
 

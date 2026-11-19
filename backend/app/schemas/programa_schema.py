@@ -1,7 +1,8 @@
 """
 Esquemas Pydantic v2 del módulo de programas y categorías (Fase 5).
 
-BackOffice: CategoriaCreate, CategoriaEstadoRequest, ProgramaCreate, ProgramaUpdate,
+BackOffice: CategoriaCreate, CategoriaUpdate, CategoriaEstadoRequest, ProgramaCreate, ProgramaUpdate,
+            ProgramaEstadoRequest (Fase 10),
             CategoriaOut, ProgramaGestionOut, MaestroOut, MaestroResumenOut.
 Público:    CategoriaPublicaOut (programas agrupados para el paso 2 de la inscripción).
 """
@@ -70,6 +71,13 @@ class CategoriaCreate(BaseModel):
     descripcion: Descripcion = None
 
 
+class CategoriaUpdate(BaseModel):
+    """Fase 9: renombrar la categoría y cambiar su descripción."""
+
+    nombre: Nombre
+    descripcion: Descripcion = None
+
+
 class CategoriaEstadoRequest(BaseModel):
     activo: bool
 
@@ -84,6 +92,12 @@ class ProgramaUpdate(BaseModel):
     nombre: Nombre
     # Reemplaza la lista completa; [] = sin maestros.
     maestros_ids: MaestrosIds = Field(default_factory=list)
+
+
+class ProgramaEstadoRequest(BaseModel):
+    """Fase 10: deshabilitar/habilitar en lugar de eliminar."""
+
+    activo: bool
 
 
 # --------------------------------------------------------------------------- #
@@ -105,6 +119,7 @@ class ProgramaGestionOut(BaseModel):
     id: int
     nombre: str
     categoria_id: int | None
+    activo: bool = True
     maestros_ids: list[int]
     maestros: list[MaestroResumenOut]
     # Solicitudes PENDIENTE + APROBADO: las que bloquean borrar el programa o cerrar la categoría.

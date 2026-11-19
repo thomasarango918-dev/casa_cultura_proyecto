@@ -4,20 +4,33 @@
  * Grid de categorías: el lápiz abre el modal de estado y "Expandir" la tabla de programas.
  * Los modales devuelven lo que respondió la API y la página lo refleja sin recargar todo.
  * "Estadísticas" (Fase 7, Administrador y Coordinador): demanda por categoría con exportación a CSV.
+ * Fase 9: "Renombrar" y "Eliminar" en el pie de cada tarjeta (Administrador y Coordinador).
  */
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
-import { BarChart3, FolderPlus, Layers, LoaderCircle, Maximize2, Pencil, RefreshCw, TriangleAlert } from 'lucide-react'
+import {
+  BarChart3,
+  FolderPlus,
+  Layers,
+  LoaderCircle,
+  Maximize2,
+  PenLine,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react'
 import CategoriaEstadoModal from '../components/programas/CategoriaEstadoModal'
 import CategoriaFormModal from '../components/programas/CategoriaFormModal'
 import CategoriaProgramasModal from '../components/programas/CategoriaProgramasModal'
 import { CategoriaEstadoBadge } from '../components/programas/ProgramaBadges'
 import AccessDenied from '../components/ui/AccessDenied'
 import Button from '../components/ui/Button'
-import { ROLES_ESTADISTICAS, tieneRol } from '../config/roles'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
+import { ROLES_ESTADISTICAS, ROLES_GESTION_PROGRAMAS, tieneRol } from '../config/roles'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { getApiErrorMessage } from '../services/apiClient'
-import { listCategorias, listMaestros } from '../services/programasService'
+import { eliminarCategoria, listCategorias, listMaestros } from '../services/programasService'
 import { getProgramIcon } from '../utils/programIcons'
 
 // Fase 7: Recharts solo se descarga cuando se abre el modal de estadísticas.
@@ -42,9 +55,12 @@ function aplicarCambioPrograma(categoria, programa, accion) {
   }
 }
 
-function CategoriaCard({ categoria, onEditar, onExpandir }) {
+function CategoriaCard({ categoria, onEditar, onExpandir, onRenombrar, onEliminar }) {
   const Icon = getProgramIcon(categoria.nombre)
-  const total = categoria.programas.length
+  // Fase 10: la vista macro solo cuenta y lista los programas habilitados.
+  const activos = categoria.programas.filter((programa) => programa.activo !== false)
+  const total = activos.length
+  const estudiantes = activos.reduce((suma, programa) => suma + programa.estudiantes_inscritos, 0)
   const restantes = total - VISTA_PREVIA
 
   return (
@@ -72,8 +88,8 @@ function CategoriaCard({ categoria, onEditar, onExpandir }) {
             </button>
           </div>
           <p className="mt-0.5 text-xs tabular-nums text-slate-500">
-            {total} programa{total === 1 ? '' : 's'} · {categoria.estudiantes_inscritos} estudiante
-            {categoria.estudiantes_inscritos === 1 ? '' : 's'} activo{categoria.estudiantes_inscritos === 1 ? '' : 's'}
+            {total} programa{total === 1 ? '' : 's'} · {estudiantes} estudiante
+            {estudiantes === 1 ? '' : 's'} activo{estudiantes === 1 ? '' : 's'}
           </p>
         </div>
         {!categoria.activo && <CategoriaEstadoBadge activo={false} />}
@@ -86,11 +102,11 @@ function CategoriaCard({ categoria, onEditar, onExpandir }) {
       <div className="flex-1 px-5 py-4">
         {total === 0 ? (
           <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-sm text-slate-400">
-            Sin programas todavía
+            {categoria.programas.length === 0 ? 'Sin programas todavía' : 'Sin programas habilitados'}
           </p>
         ) : (
           <ul className="space-y-1.5">
-            {categoria.programas.slice(0, VISTA_PREVIA).map((programa) => (
+            {activos.slice(0, VISTA_PREVIA).map((programa) => (
               <li key={programa.id} className="flex items-center gap-2 text-sm text-slate-700">
                 <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-pradera-500" />
                 <span className="truncate">{programa.nombre}</span>
@@ -105,10 +121,33 @@ function CategoriaCard({ categoria, onEditar, onExpandir }) {
         )}
       </div>
 
-      <footer className="border-t border-slate-100 px-3 py-2">
-        <Button variant="ghost" icon={Maximize2} onClick={onExpandir} className="w-full">
+      <footer className="flex items-center gap-1 border-t border-slate-100 px-3 py-2">
+        <Button variant="ghost" icon={Maximize2} onClick={onExpandir} className="flex-1">
           Expandir
         </Button>
+        {/* Fase 9: sin handlers (rol sin permiso) no se dibujan. */}
+        {onRenombrar && (
+          <button
+            type="button"
+            onClick={onRenombrar}
+            className="inline-grid size-9 shrink-0 place-items-center rounded-lg text-pizarra-700 transition-colors hover:bg-pizarra-50 hover:text-pizarra-950"
+            aria-label={`Renombrar la categoría ${categoria.nombre}`}
+            title="Renombrar"
+          >
+            <PenLine aria-hidden="true" className="size-4" />
+          </button>
+        )}
+        {onEliminar && (
+          <button
+            type="button"
+            onClick={onEliminar}
+            className="inline-grid size-9 shrink-0 place-items-center rounded-lg text-rose-600 transition-colors hover:bg-rose-50 hover:text-rose-700"
+            aria-label={`Eliminar la categoría ${categoria.nombre}`}
+            title="Eliminar"
+          >
+            <Trash2 aria-hidden="true" className="size-4" />
+          </button>
+        )}
       </footer>
     </article>
   )
@@ -118,12 +157,14 @@ export default function ProgramasPage() {
   const toast = useToast()
   const { user } = useAuth()
   const puedeVerEstadisticas = tieneRol(user?.rol, ROLES_ESTADISTICAS)
+  const puedeGestionar = tieneRol(user?.rol, ROLES_GESTION_PROGRAMAS)
   const [categorias, setCategorias] = useState([])
+  const [eliminando, setEliminando] = useState(false)
   const [status, setStatus] = useState('loading') // loading | ready | error | forbidden
   const [errorMessage, setErrorMessage] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
 
-  // { tipo: 'crear' | 'estadisticas' } | { tipo: 'estado' | 'expandir', id }
+  // { tipo: 'crear' | 'estadisticas' } | { tipo: 'estado' | 'expandir' | 'renombrar' | 'eliminar', id }
   const [modal, setModal] = useState(null)
   const [maestros, setMaestros] = useState({ status: 'idle', items: [] })
   const maestrosStatus = useRef('idle')
@@ -174,6 +215,31 @@ export default function ProgramasPage() {
   const agregarCategoria = useCallback((nueva) => {
     setCategorias((current) => [...current, nueva].sort(porNombre))
   }, [])
+
+  // Fase 9: el nombre cambia el orden alfabético de la grilla.
+  const renombrarCategoria = useCallback((editada) => {
+    setCategorias((current) => current.map((item) => (item.id === editada.id ? editada : item)).sort(porNombre))
+  }, [])
+
+  async function confirmarEliminacion() {
+    const categoria = categorias.find((item) => item.id === modal?.id)
+    if (!categoria) return
+    setEliminando(true)
+    try {
+      await eliminarCategoria(categoria.id)
+      setCategorias((current) => current.filter((item) => item.id !== categoria.id))
+      toast.success('Categoría eliminada', `«${categoria.nombre}» ya no aparece en el formulario público.`)
+      setModal(null)
+    } catch (error) {
+      // 403 sin texto crudo: mensaje propio.
+      const mensaje =
+        error.response?.status === 403 ? 'Careces de los suficientes permisos.' : getApiErrorMessage(error)
+      toast.error('No fue posible eliminar la categoría', mensaje)
+      setModal(null)
+    } finally {
+      setEliminando(false)
+    }
+  }
 
   const cambiarPrograma = useCallback(
     (programa, accion) => {
@@ -263,6 +329,8 @@ export default function ProgramasPage() {
                 categoria={categoria}
                 onEditar={() => setModal({ tipo: 'estado', id: categoria.id })}
                 onExpandir={() => setModal({ tipo: 'expandir', id: categoria.id })}
+                onRenombrar={puedeGestionar ? () => setModal({ tipo: 'renombrar', id: categoria.id }) : undefined}
+                onEliminar={puedeGestionar ? () => setModal({ tipo: 'eliminar', id: categoria.id }) : undefined}
               />
             ))}
           </div>
@@ -276,6 +344,27 @@ export default function ProgramasPage() {
       )}
 
       {modal?.tipo === 'crear' && <CategoriaFormModal onClose={closeModal} onCreated={agregarCategoria} />}
+
+      {modal?.tipo === 'renombrar' && seleccionada && (
+        <CategoriaFormModal categoria={seleccionada} onClose={closeModal} onUpdated={renombrarCategoria} />
+      )}
+
+      {modal?.tipo === 'eliminar' && seleccionada && (
+        <ConfirmDialog
+          title={`¿Eliminar la categoría «${seleccionada.nombre}»?`}
+          description={
+            seleccionada.programas.length > 0
+              ? `Tiene ${seleccionada.programas.length} programa${seleccionada.programas.length === 1 ? '' : 's'}. Debe eliminarlos o reasignarlos antes de borrar la categoría.`
+              : 'La categoría se borrará de forma permanente y dejará de aparecer en el formulario público.'
+          }
+          confirmLabel="Eliminar"
+          tone="danger"
+          icon={Trash2}
+          loading={eliminando}
+          onConfirm={confirmarEliminacion}
+          onCancel={closeModal}
+        />
+      )}
 
       {modal?.tipo === 'estado' && seleccionada && (
         <CategoriaEstadoModal categoria={seleccionada} onClose={closeModal} onSaved={reemplazarCategoria} />

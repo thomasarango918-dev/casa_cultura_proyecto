@@ -60,3 +60,8 @@ def fechas_de_clase(
                 omitidos.append((fecha, festivo))
         fecha += timedelta(days=1)
     return sesiones, omitidos
+
+
+def ahora_colombia() -> datetime:
+    """Fecha y hora actuales de Colombia (UTC-5). Fase 9: estado de las sesiones del día."""
+    return datetime.now(ZONA_COLOMBIA)

@@ -84,3 +84,6 @@ ROLES_ASISTENCIA = tuple(nombres_de_rol(frozenset({ADMINISTRADOR, MAESTRO})))
 ROLES_ESTADISTICAS = ("Administrador", "Coordinador")
 # La ocupación de grupos también la ve el Maestro, pero solo la de sus propios grupos.
 ROLES_ESTADISTICAS_GRUPOS = ROLES_GRUPOS
+
+# Fase 9: panel general del Maestro (sus KPIs, horario y sesiones de hoy).
+ROLES_PANEL_MAESTRO = tuple(nombres_de_rol(frozenset({MAESTRO})))

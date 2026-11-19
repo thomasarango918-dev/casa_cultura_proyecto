@@ -3,12 +3,14 @@ Capa Controlador (MVC): categorías y programas (Fase 5, JWT + Administrador/Coo
 
     GET    /api/v1/admin/categorias               Categorías con sus programas y métricas.
     POST   /api/v1/admin/categorias               Crear categoría (400 si el nombre existe).
+    PUT    /api/v1/admin/categorias/{id}          Fase 9: renombrar (400 si el nombre existe).
+    DELETE /api/v1/admin/categorias/{id}          Fase 9: eliminar (400 si tiene programas).
     PATCH  /api/v1/admin/categorias/{id}/estado   Habilitar/deshabilitar (400 con estudiantes activos).
     GET    /api/v1/admin/programas                Programas con métricas (?categoria_id=).
     GET    /api/v1/admin/programas/maestros       Usuarios con rol Maestro, para asignar.
     POST   /api/v1/admin/programas                Crear programa en una categoría.
     PUT    /api/v1/admin/programas/{id}           Editar nombre y maestros (maestros_ids).
-    DELETE /api/v1/admin/programas/{id}           Eliminar (400 con estudiantes activos o historial).
+    PATCH  /api/v1/admin/programas/{id}/estado    Fase 10: deshabilitar/habilitar (reemplaza al DELETE).
 """
 
 from typing import Annotated
@@ -21,8 +23,10 @@ from app.schemas.programa_schema import (
     CategoriaCreate,
     CategoriaEstadoRequest,
     CategoriaOut,
+    CategoriaUpdate,
     MaestroOut,
     ProgramaCreate,
+    ProgramaEstadoRequest,
     ProgramaGestionOut,
     ProgramaUpdate,
 )
@@ -74,6 +78,34 @@ def create_categoria(
 ) -> CategoriaOut:
     try:
         return service.crear_categoria(data)
+    except DomainError as exc:
+        raise _http_error(exc) from exc
+
+
+@categorias_router.put(
+    "/{categoria_id}", response_model=CategoriaOut, summary="Editar nombre de la categoría", responses=_ERRORES
+)
+def update_categoria(
+    categoria_id: CategoriaId,
+    data: CategoriaUpdate,
+    service: ProgramaService = Depends(get_programa_service),
+) -> CategoriaOut:
+    try:
+        return service.actualizar_categoria(categoria_id, data)
+    except DomainError as exc:
+        raise _http_error(exc) from exc
+
+
+@categorias_router.delete(
+    "/{categoria_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar categoría",
+    description="Solo si no tiene programas asociados (activos o inactivos).",
+    responses=_ERRORES,
+)
+def delete_categoria(categoria_id: CategoriaId, service: ProgramaService = Depends(get_programa_service)) -> None:
+    try:
+        service.eliminar_categoria(categoria_id)
     except DomainError as exc:
         raise _http_error(exc) from exc
 
@@ -141,11 +173,20 @@ def update_programa(
         raise _http_error(exc) from exc
 
 
-@programas_router.delete(
-    "/{programa_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Eliminar programa", responses=_ERRORES
+# Fase 10: sin DELETE de programas; se deshabilitan para conservar el historial.
+@programas_router.patch(
+    "/{programa_id}/estado",
+    response_model=ProgramaGestionOut,
+    summary="Deshabilitar o habilitar un programa",
+    description="Deshabilitado = oculto en el formulario público. Conserva solicitudes, grupos y asistencias.",
+    responses=_ERRORES,
 )
-def delete_programa(programa_id: ProgramaId, service: ProgramaService = Depends(get_programa_service)) -> None:
+def update_estado_programa(
+    programa_id: ProgramaId,
+    data: ProgramaEstadoRequest,
+    service: ProgramaService = Depends(get_programa_service),
+) -> ProgramaGestionOut:
     try:
-        service.eliminar_programa(programa_id)
+        return service.cambiar_estado_programa(programa_id, data.activo)
     except DomainError as exc:
         raise _http_error(exc) from exc

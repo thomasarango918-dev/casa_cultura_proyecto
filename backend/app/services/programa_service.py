@@ -3,7 +3,7 @@ Servicio de categorías y programas (Fase 5).
 
 "Estudiante activo" = solicitud PENDIENTE o APROBADO. Con estudiantes activos:
     - no se deshabilita la categoría (dejarían de ver su programa en la oferta);
-    - no se elimina el programa.
+    - (Fase 10) los programas no se eliminan: se deshabilitan y conservan su historial.
 """
 
 import logging
@@ -18,6 +18,7 @@ from app.schemas.programa_schema import (
     CategoriaCreate,
     CategoriaOut,
     CategoriaPublicaOut,
+    CategoriaUpdate,
     MaestroOut,
     MaestroResumenOut,
     ProgramaCreate,
@@ -41,6 +42,7 @@ def to_programa_out(
         id=programa.id,
         nombre=programa.programa,
         categoria_id=programa.categoria_id,
+        activo=programa.activo,
         maestros_ids=[maestro.id for maestro in programa.maestros],
         maestros=[MaestroResumenOut(id=m.id, nombre_completo=m.nombre_com) for m in programa.maestros],
         estudiantes_inscritos=activos.get(programa.id, 0),
@@ -86,17 +88,18 @@ class ProgramaService:
         ]
 
     def catalogo_publico(self) -> list[CategoriaPublicaOut]:
-        """Categorías activas con al menos un programa; las vacías no le sirven al aspirante."""
-        return [
-            CategoriaPublicaOut(
-                id=categoria.id,
-                nombre=categoria.nombre,
-                descripcion=categoria.descripcion,
-                programas=[ProgramaOut.model_validate(programa) for programa in categoria.programas],
-            )
-            for categoria in self._repository.list_categorias(solo_activas=True)
-            if categoria.programas
-        ]
+        """Categorías activas con al menos un programa activo; las vacías no le sirven al aspirante."""
+        catalogo = []
+        for categoria in self._repository.list_categorias(solo_activas=True):
+            # Fase 10: los programas deshabilitados no se ofrecen.
+            programas = [ProgramaOut.model_validate(p) for p in categoria.programas if p.activo]
+            if programas:
+                catalogo.append(
+                    CategoriaPublicaOut(
+                        id=categoria.id, nombre=categoria.nombre, descripcion=categoria.descripcion, programas=programas
+                    )
+                )
+        return catalogo
 
     # ---- Categorías ----------------------------------------------------------------
     def crear_categoria(self, data: CategoriaCreate) -> CategoriaOut:
@@ -135,6 +138,50 @@ class ProgramaService:
         logger.info("Categoría %s %s", categoria.id, "habilitada" if activo else "deshabilitada")
         grupos = self._repository.grupos_por_programa(programa.id for programa in categoria.programas)
         return to_categoria_out(categoria, activos, grupos)
+
+    def actualizar_categoria(self, categoria_id: int, data: CategoriaUpdate) -> CategoriaOut:
+        """Fase 9: renombra la categoría. El catálogo público la lee en vivo, así que el cambio es inmediato."""
+        categoria = self._repository.get_categoria(categoria_id, bloquear=True)
+        if categoria is None:
+            self._repository.rollback()
+            raise RecursoNoEncontradoError("La categoría no existe.")
+        if self._repository.categoria_nombre_en_uso(data.nombre, excluir_id=categoria.id):
+            self._repository.rollback()
+            raise DatosInvalidosError(f"Ya existe una categoría llamada «{data.nombre}».")
+
+        categoria.nombre = data.nombre
+        categoria.descripcion = data.descripcion
+        self._commit(f"Ya existe una categoría llamada «{data.nombre}».")
+        self._repository.refresh(categoria)
+        logger.info("Categoría %s renombrada a %s", categoria.id, categoria.nombre)
+        ids = [programa.id for programa in categoria.programas]
+        return to_categoria_out(
+            categoria, self._repository.estudiantes_activos(ids), self._repository.grupos_por_programa(ids)
+        )
+
+    def eliminar_categoria(self, categoria_id: int) -> None:
+        """Fase 9: solo se elimina una categoría sin programas (activos o no).
+
+        FOR UPDATE: un programa nuevo en esta categoría (su FK pide KEY SHARE) espera a que termine.
+        """
+        categoria = self._repository.get_categoria(categoria_id, bloquear=True)
+        if categoria is None:
+            self._repository.rollback()
+            raise RecursoNoEncontradoError("La categoría no existe.")
+
+        programas = self._repository.total_programas(categoria.id)
+        if programas:
+            self._repository.rollback()
+            raise DatosInvalidosError(
+                f"No se puede eliminar «{categoria.nombre}»: tiene "
+                f"{_plural(programas, 'programa asociado', 'programas asociados')}. "
+                "Elimine o reasigne sus programas primero."
+            )
+
+        nombre = categoria.nombre
+        self._repository.delete(categoria)
+        self._commit(f"No se puede eliminar «{nombre}»: tiene programas asociados.")
+        logger.info("Categoría eliminada: %s (id=%s)", nombre, categoria_id)
 
     # ---- Programas -----------------------------------------------------------------
     def _maestros_validos(self, maestros_ids: list[int], actuales: list[Usuario] | None = None) -> list[Usuario]:
@@ -190,40 +237,25 @@ class ProgramaService:
             self._repository.grupos_por_programa([programa.id]),
         )
 
-    def eliminar_programa(self, programa_id: int) -> None:
-        # El bloqueo hace esperar a una radicación en curso sobre este programa.
+    def cambiar_estado_programa(self, programa_id: int, activo: bool) -> ProgramaGestionOut:
+        """Fase 10: reemplaza la eliminación. Nunca hay DELETE: solicitudes, grupos y asistencias quedan intactos.
+
+        FOR UPDATE: una radicación en curso (FOR SHARE) termina antes y la siguiente ya ve el estado nuevo.
+        """
         programa = self._repository.get_programa(programa_id, bloquear=True)
         if programa is None:
             self._repository.rollback()
             raise RecursoNoEncontradoError("El programa no existe.")
 
-        activos = self._repository.estudiantes_activos([programa.id]).get(programa.id, 0)
-        if activos:
-            self._repository.rollback()
-            raise DatosInvalidosError(
-                f"No se puede eliminar «{programa.programa}»: tiene "
-                f"{_plural(activos, 'estudiante activo', 'estudiantes activos')} (solicitudes pendientes o aprobadas)."
-            )
-        # Las solicitudes rechazadas son historial: borrarlas no es opción y la FK lo impediría.
-        historial = self._repository.total_solicitudes(programa.id)
-        if historial:
-            self._repository.rollback()
-            raise DatosInvalidosError(
-                f"No se puede eliminar «{programa.programa}»: conserva "
-                f"{_plural(historial, 'solicitud rechazada', 'solicitudes rechazadas')} en el historial."
-            )
-
-        grupos = self._repository.grupos_por_programa([programa.id]).get(programa.id, 0)
-        if grupos:
-            self._repository.rollback()
-            raise DatosInvalidosError(
-                f"No se puede eliminar «{programa.programa}»: tiene {_plural(grupos, 'grupo creado', 'grupos creados')}."
-            )
-
-        nombre = programa.programa
-        self._repository.delete(programa)
-        self._commit(f"No se puede eliminar «{nombre}»: tiene registros asociados (por ejemplo, grupos).")
-        logger.info("Programa eliminado: %s (id=%s)", nombre, programa_id)
+        programa.activo = activo
+        self._repository.commit()
+        self._repository.refresh(programa)
+        logger.info("Programa %s %s", programa.id, "habilitado" if activo else "deshabilitado")
+        return to_programa_out(
+            programa,
+            self._repository.estudiantes_activos([programa.id]),
+            self._repository.grupos_por_programa([programa.id]),
+        )
 
     def _commit(self, mensaje_conflicto: str) -> None:
         """Una carrera con otra petición (nombre repetido, FK) llega como IntegrityError: se responde 400."""

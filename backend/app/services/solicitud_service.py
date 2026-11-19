@@ -136,6 +136,8 @@ def to_detalle(solicitud: SolicitudInscripcion) -> SolicitudDetalle:
         evaluado_por=solicitud.evaluador.nombre_com if solicitud.evaluador else None,
         fecha_nacimiento=solicitud.fecha_nacimiento,
         acudiente=acudiente,
+        sexo=solicitud.sexo,
+        zona_residencia=solicitud.zona_residencia,
         documentos=[to_documento_out(documento) for documento in sorted(solicitud.documentos, key=_orden_documento)],
     )
 
@@ -224,7 +226,8 @@ class SolicitudService:
         if encontrado is None:
             raise DatosInvalidosError("El programa seleccionado no existe.")
         programa, categoria_activa = encontrado
-        if not categoria_activa:
+        # Fase 10: un programa deshabilitado tampoco admite radicaciones.
+        if not categoria_activa or not programa.activo:
             raise DatosInvalidosError("El programa seleccionado no está disponible para inscripciones.")
         if not self._repository.tipo_documento_exists(data.tipo_documento):
             raise DatosInvalidosError("El tipo de documento seleccionado no es válido.")
@@ -258,6 +261,8 @@ class SolicitudService:
                     acudiente_telefono=data.acudiente_telefono if menor else None,
                     acudiente_parentesco=data.acudiente_parentesco if menor else None,
                     periodo=periodo,
+                    sexo=data.sexo,
+                    zona_residencia=data.zona_residencia,
                 )
             )
             for codigo, archivo in documentos:
